@@ -1,10 +1,13 @@
 #include <stdint.h>
 
+typedef uint_least32_t xword_t;
+
 #define MASK(L, H)    ((UINT32_C(1) << (H) - 1 << 1) - (UINT32_C(1) << (L)))
 #define BITS(X, L, H) (((X) & MASK(L, H)) >> (L))
 
 struct insn {
 	uint_least8_t opcode, funct3, funct7, rs1, rs2, rd;
+	xword_t iimm;
 };
 
 static struct insn decode(uint_least32_t x) {
@@ -14,7 +17,7 @@ static struct insn decode(uint_least32_t x) {
 	i.rd     = BITS(x,  7, 12);
 	i.funct3 = BITS(x, 12, 15);
 	i.rs1    = BITS(x, 15, 20);
-	i.rs2    = BITS(x, 20, 25);
+	i.rs2    = BITS(x, 20, 25); i.iimm = (BITS(x, 20, 32) ^ 1 << 11) - (1 << 11);
 	i.funct7 = BITS(x, 25, 32);
 
 	return i;
@@ -46,14 +49,18 @@ int main(int argc, char **argv) {
 
 		/* R-type: 40C5D533 sra a0, a1, a2
 		           0110011 101 0100000 rd=10 rs1=11 rs2=12
+		   I-type: A555C513 xori a0, a1, ~0x5AA
+		           0010011 100 rd=10 rs1=11 I=0xFFFFFA55
 		 */
 
-		printf("%s %s %s rd=%u (%.*s) rs1=%u (%.*s) rs2=%u (%.*s)\n",
+		printf("%s %s %s rd=%u (%.*s) rs1=%u (%.*s) rs2=%u (%.*s)\n"
+		       "\tI = 0x%" PRIXLEAST32 "\n",
 		       binary(opcode, sizeof opcode, i.opcode),
 		       binary(funct3, sizeof funct3, i.funct3),
 		       binary(funct7, sizeof funct7, i.funct7),
 		       (unsigned)i.rd,  (int)sizeof irname[0], irname[i.rd],
 		       (unsigned)i.rs1, (int)sizeof irname[0], irname[i.rs1],
-		       (unsigned)i.rs2, (int)sizeof irname[0], irname[i.rs2]);
+		       (unsigned)i.rs2, (int)sizeof irname[0], irname[i.rs2],
+		       i.iimm);
 	}
 }
