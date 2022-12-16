@@ -93,12 +93,29 @@ static void lui(struct hart *t, const struct insn *i) {
 	if (i->rd) t->ireg[i->rd] = out;
 }
 
+static void bcc(struct hart *t, const struct insn *i) {
+	xword_t in1 = t->ireg[i->rs1],
+	        in2 = t->ireg[i->rs2];
+	int flg;
+	switch (i->funct3) {
+	case 0: flg = in1 == in2; break;
+	case 1: flg = in1 != in2; break;
+	case 4: flg = (in1 ^ SIGN) <  (in2 ^ SIGN); break;
+	case 5: flg = (in1 ^ SIGN) >= (in2 ^ SIGN); break;
+	case 6: flg = in1 <  in2; break;
+	case 7: flg = in1 >= in2; break;
+	default: abort(); /* FIXME */
+	}
+	if (flg) t->pc = t->pc + i->bimm & XWORD_MAX; /* FIXME - 4 ? */
+}
+
 static void execute(struct hart *t, const struct insn *i) {
 	switch (i->opcode) {
 	case 0x13: aluint(t, i); break;
 	case 0x17: lui(t, i); break;
 	case 0x33: alu(t, i); break;
 	case 0x37: lui(t, i); break;
+	case 0x63: bcc(t, i); break;
 	default: abort(); /* FIXME */
 	}
 }
