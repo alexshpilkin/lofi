@@ -7,13 +7,13 @@ typedef uint_least32_t xword_t;
 
 struct insn {
 	uint_least8_t opcode, funct3, funct7, rs1, rs2, rd;
-	xword_t iimm, simm, bimm;
+	xword_t iimm, simm, bimm, uimm;
 };
 
 static struct insn decode(uint_least32_t x) {
 	struct insn i = {0};
 
-	i.opcode = BITS(x,  0,  7);
+	i.opcode = BITS(x,  0,  7); i.uimm = x & ~MASK(0, 12);
 	i.rd     = BITS(x,  7, 12);
 	i.funct3 = BITS(x, 12, 15);
 	i.rs1    = BITS(x, 15, 20);
@@ -59,18 +59,21 @@ int main(int argc, char **argv) {
 		   B-type: DAB51263 foo: .skip 0xA5C; bne a0, a1, foo
 		           1100011 001 rs1=10 rs2=11 B=0xFFFFF5A4
 		           (NB: offset is from *start* of jump)
+		   U-type: FEDCB537 lui a0, 0xFEDCB
+		           0110111 rd=10 U=0xFEDCB000
 		 */
 
 		printf("%s %s %s rd=%u (%.*s) rs1=%u (%.*s) rs2=%u (%.*s)\n"
 		       "\tI = 0x%" PRIXLEAST32 "\n"
 		       "\tS = 0x%" PRIXLEAST32 "\n"
-		       "\tB = 0x%" PRIXLEAST32 "\n",
+		       "\tB = 0x%" PRIXLEAST32 "\n"
+		       "\tU = 0x%" PRIXLEAST32 "\n",
 		       binary(opcode, sizeof opcode, i.opcode),
 		       binary(funct3, sizeof funct3, i.funct3),
 		       binary(funct7, sizeof funct7, i.funct7),
 		       (unsigned)i.rd,  (int)sizeof irname[0], irname[i.rd],
 		       (unsigned)i.rs1, (int)sizeof irname[0], irname[i.rs1],
 		       (unsigned)i.rs2, (int)sizeof irname[0], irname[i.rs2],
-		       i.iimm, i.simm, i.bimm);
+		       i.iimm, i.simm, i.bimm, i.uimm);
 	}
 }
