@@ -1,8 +1,28 @@
 #include <stdint.h>
 
-typedef uint_least32_t xword_t;
+#ifndef XWORD_BIT
+#define XWORD_BIT 32
+#endif
 
-#define MASK(L, H)    ((UINT32_C(1) << (H) - 1 << 1) - (UINT32_C(1) << (L)))
+#if XWORD_BIT == 32
+
+typedef uint_least32_t xword_t;
+#define XWORD_C UINT32_C
+#define PRIXXWORD ".8" PRIXLEAST32
+
+#elif XWORD_BIT == 64
+
+typedef uint_least64_t xword_t;
+#define XWORD_C UINT64_C
+#define PRIXXWORD ".16" PRIXLEAST64
+
+#else
+
+#error "Unsupported XWORD_BIT value"
+
+#endif
+
+#define MASK(L, H)    ((XWORD_C(1) << (H) - 1 << 1) - (XWORD_C(1) << (L)))
 #define BITS(X, L, H) (((X) & MASK(L, H)) >> (L))
 
 struct insn {
@@ -13,7 +33,7 @@ struct insn {
 static struct insn decode(uint_least32_t x) {
 	struct insn i = {0};
 
-	i.opcode = BITS(x,  0,  7); i.uimm = x & ~MASK(0, 12);
+	i.opcode = BITS(x,  0,  7); i.uimm = (x & MASK(12, 32) ^ XWORD_C(1) << 31) - (XWORD_C(1) << 31);
 	i.rd     = BITS(x,  7, 12);
 	i.funct3 = BITS(x, 12, 15);
 	i.rs1    = BITS(x, 15, 20);
@@ -68,11 +88,11 @@ int main(int argc, char **argv) {
 		 */
 
 		printf("%s %s %s rd=%u (%.*s) rs1=%u (%.*s) rs2=%u (%.*s)\n"
-		       "\tI = 0x%" PRIXLEAST32 "\n"
-		       "\tS = 0x%" PRIXLEAST32 "\n"
-		       "\tB = 0x%" PRIXLEAST32 "\n"
-		       "\tU = 0x%" PRIXLEAST32 "\n"
-		       "\tJ = 0x%" PRIXLEAST32 "\n",
+		       "\tI = 0x%" PRIXXWORD "\n"
+		       "\tS = 0x%" PRIXXWORD "\n"
+		       "\tB = 0x%" PRIXXWORD "\n"
+		       "\tU = 0x%" PRIXXWORD "\n"
+		       "\tJ = 0x%" PRIXXWORD "\n",
 		       binary(opcode, sizeof opcode, i.opcode),
 		       binary(funct3, sizeof funct3, i.funct3),
 		       binary(funct7, sizeof funct7, i.funct7),
