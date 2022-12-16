@@ -221,9 +221,18 @@ static void str(struct hart *t, const struct insn *i) {
 	}
 }
 
+static void mem(struct hart *t, const struct insn *i) {
+	switch (i->funct3) {
+	case 0: /* FENCE */ break;
+	case 1: /* FENCE.I */ break;
+	default: abort(); /* FIXME */
+	}
+}
+
 static void execute(struct hart *t, const struct insn *i) {
 	switch (i->opcode) {
 	case 0x03: ldr(t, i); break;
+	case 0x0F: mem(t, i); break;
 	case 0x13: aluint(t, i); break;
 	case 0x17: lui(t, i); break;
 #if XWORD_BIT > 32
