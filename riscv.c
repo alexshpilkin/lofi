@@ -109,6 +109,17 @@ static void bcc(struct hart *t, const struct insn *i) {
 	if (flg) t->pc = t->pc + i->bimm & XWORD_MAX; /* FIXME - 4 ? */
 }
 
+static void jal(struct hart *t, const struct insn *i) {
+	if (i->rd) t->ireg[i->rd] = t->pc + 4 & XWORD_MAX;
+	t->pc = t->pc + i->jimm & XWORD_MAX; /* FIXME - 4 ? */
+}
+
+static void jalr(struct hart *t, const struct insn *i) {
+	xword_t in = t->ireg[i->rs1];
+	if (i->rd) t->ireg[i->rd] = t->pc + 4 & XWORD_MAX;
+	t->pc = in + i->iimm & XWORD_MAX - 1; /* FIXME - 4 ? */
+}
+
 static void execute(struct hart *t, const struct insn *i) {
 	switch (i->opcode) {
 	case 0x13: aluint(t, i); break;
@@ -116,6 +127,8 @@ static void execute(struct hart *t, const struct insn *i) {
 	case 0x33: alu(t, i); break;
 	case 0x37: lui(t, i); break;
 	case 0x63: bcc(t, i); break;
+	case 0x67: jalr(t, i); break;
+	case 0x6F: jal(t, i); break;
 	default: abort(); /* FIXME */
 	}
 }
