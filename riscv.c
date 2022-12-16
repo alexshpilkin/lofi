@@ -156,13 +156,80 @@ static void jalr(struct hart *t, const struct insn *i) {
 	t->pc = in + i->iimm & XWORD_MAX - 1; /* FIXME - 4 ? */
 }
 
+uint_least8_t *map(struct hart *t, xword_t a, xword_t n);
+/* FIXME unmap? */
+
+static void ldr(struct hart *t, const struct insn *i) {
+	uint_least8_t *restrict m;
+	xword_t a = t->ireg[i->rs1] + i->iimm & XWORD_MAX,
+	        x = 0,
+	        s = 0;
+	switch (i->funct3) {
+	case 0: s = XWORD_C(1) <<  7;
+	case 4: m = map(t, a, 1); goto byte;
+	case 1: s = XWORD_C(1) << 15;
+	case 5: m = map(t, a, 2); goto half;
+	case 2:
+#if XWORD_BIT > 32
+	        s = XWORD_C(1) << 31;
+	case 6:
+#endif
+	        m = map(t, a, 4); goto word;
+#if XWORD_BIT >= 64
+	case 3: s = XWORD_C(1) << 63;
+	        m = map(t, a, 8); goto doub;
+
+	doub: x |= (xword_t)m[7] << 56;
+	      x |= (xword_t)m[6] << 48;
+	      x |= (xword_t)m[5] << 40;
+	      x |= (xword_t)m[4] << 32;
+#endif
+	word: x |= (xword_t)m[3] << 24;
+	      x |= (xword_t)m[2] << 16;
+	half: x |= (xword_t)m[1] <<  8;
+	byte: x |= (xword_t)m[0];
+	      break;
+
+	default: abort(); /* FIXME */
+	}
+	if (i->rd) t->ireg[i->rd] = (x ^ s) - s & XWORD_MAX;
+}
+
+static void str(struct hart *t, const struct insn *i) {
+	xword_t a = t->ireg[i->rs1] + i->simm & XWORD_MAX,
+	        x = t->ireg[i->rs2];
+	uint_least8_t *restrict m;
+	switch (i->funct3) {
+	case 0: m = map(t, a, 1); goto byte;
+	case 1: m = map(t, a, 2); goto half;
+	case 2: m = map(t, a, 4); goto word;
+#if XWORD_BIT >= 64
+	case 3: m = map(t, a, 8); goto doub;
+
+	doub: m[7] = x >> 56 & 0xFF;
+	      m[6] = x >> 48 & 0xFF;
+	      m[5] = x >> 40 & 0xFF;
+	      m[4] = x >> 32 & 0xFF;
+#endif
+	word: m[3] = x >> 24 & 0xFF;
+	      m[2] = x >> 16 & 0xFF;
+	half: m[1] = x >>  8 & 0xFF;
+	byte: m[0] = x       & 0xFF;
+	      break;
+
+	default: abort(); /* FIXME */
+	}
+}
+
 static void execute(struct hart *t, const struct insn *i) {
 	switch (i->opcode) {
+	case 0x03: ldr(t, i); break;
 	case 0x13: aluint(t, i); break;
 	case 0x17: lui(t, i); break;
 #if XWORD_BIT > 32
 	case 0x1B: alwint(t, i); break;
 #endif
+	case 0x23: str(t, i); break;
 	case 0x33: alu(t, i); break;
 	case 0x37: lui(t, i); break;
 #if XWORD_BIT > 32
@@ -179,6 +246,19 @@ static void execute(struct hart *t, const struct insn *i) {
 #include <inttypes.h>
 #include <stdio.h>
 
+struct cpu {
+	struct hart hart;
+	uint_least8_t *restrict image;
+	size_t size;
+};
+
+uint_least8_t *map(struct hart *t, xword_t addr, xword_t size) {
+	struct cpu *c = (struct cpu *)t;
+	if (addr & size - 1) abort(); /* FIXME */
+	if (addr >= c->size || (addr + size & XWORD_MAX) >= c->size) abort(); /* FIXME */
+	return &c->image[addr];
+}
+
 static char *binary(char *s, size_t n, uint_least32_t w) {
 	s[n-1] = '\0';
 	for (size_t i = n - 2; i < n; i--)
@@ -194,21 +274,42 @@ const char irname[][4] = {
 };
 
 int main(int argc, char **argv) {
-	struct hart t = {0};
+	uint_least8_t image[128] = {0};
+	struct cpu c = {0};
+	c.image = image; c.size = sizeof image / sizeof image[0];
 
 	for (;;) {
-		printf("  pc=0x%" PRIXXWORD "\n", t.pc);
+		printf("  pc=0x%" PRIXXWORD "\n", c.hart.pc);
 		for (size_t i = 0; i < sizeof irname / sizeof irname[0]; i += 4) {
 			printf("%*.*s=0x%" PRIXXWORD " %*.*s=0x%" PRIXXWORD " "
 			       "%*.*s=0x%" PRIXXWORD " %*.*s=0x%" PRIXXWORD "\n",
 			       (int)sizeof irname[0], (int)sizeof irname[0],
-			       irname[i],   t.ireg[i],
+			       irname[i],   c.hart.ireg[i],
 			       (int)sizeof irname[0], (int)sizeof irname[0],
-			       irname[i+1], t.ireg[i+1],
+			       irname[i+1], c.hart.ireg[i+1],
 			       (int)sizeof irname[0], (int)sizeof irname[0],
-			       irname[i+2], t.ireg[i+2],
+			       irname[i+2], c.hart.ireg[i+2],
 			       (int)sizeof irname[0], (int)sizeof irname[0],
-			       irname[i+3], t.ireg[i+3]);
+			       irname[i+3], c.hart.ireg[i+3]);
+		}
+		for (size_t i = 0; i < c.size; i += 16) {
+			printf("0x%04zX  ", i);
+			printf("%.2" PRIXLEAST8 " %.2" PRIXLEAST8 " "
+			       "%.2" PRIXLEAST8 " %.2" PRIXLEAST8 " "
+			       "%.2" PRIXLEAST8 " %.2" PRIXLEAST8 " "
+			       "%.2" PRIXLEAST8 " %.2" PRIXLEAST8 "  ",
+			       c.image[i],   c.image[i+1],
+			       c.image[i+2], c.image[i+3],
+			       c.image[i+4], c.image[i+5],
+			       c.image[i+6], c.image[i+7]);
+			printf("%.2" PRIXLEAST8 " %.2" PRIXLEAST8 " "
+			       "%.2" PRIXLEAST8 " %.2" PRIXLEAST8 " "
+			       "%.2" PRIXLEAST8 " %.2" PRIXLEAST8 " "
+			       "%.2" PRIXLEAST8 " %.2" PRIXLEAST8 "\n",
+			       c.image[i+ 8], c.image[i+ 9],
+			       c.image[i+10], c.image[i+11],
+			       c.image[i+12], c.image[i+13],
+			       c.image[i+14], c.image[i+15]);
 		}
 
 		uint_least32_t x;
@@ -247,6 +348,6 @@ int main(int argc, char **argv) {
 		       (unsigned)i.rs2, (int)sizeof irname[0], irname[i.rs2],
 		       i.iimm, i.simm, i.bimm, i.uimm, i.jimm);
 
-		execute(&t, &i);
+		execute(&c.hart, &i);
 	}
 }
