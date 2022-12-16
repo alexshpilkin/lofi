@@ -52,7 +52,7 @@ static struct insn decode(uint_least32_t x) {
 }
 
 struct hart {
-	xword_t ireg[32];
+	xword_t pc, ireg[32];
 };
 
 static void mbz(unsigned x) {
@@ -88,10 +88,17 @@ static void alu(struct hart *t, const struct insn *i) {
 	}
 }
 
+static void lui(struct hart *t, const struct insn *i) {
+	xword_t out = i->opcode & 0x20 ? i->uimm : t->pc + i->uimm & XWORD_MAX;
+	if (i->rd) t->ireg[i->rd] = out;
+}
+
 static void execute(struct hart *t, const struct insn *i) {
 	switch (i->opcode) {
 	case 0x13: aluint(t, i); break;
+	case 0x17: lui(t, i); break;
 	case 0x33: alu(t, i); break;
+	case 0x37: lui(t, i); break;
 	default: abort(); /* FIXME */
 	}
 }
@@ -118,6 +125,7 @@ int main(int argc, char **argv) {
 	struct hart t = {0};
 
 	for (;;) {
+		printf("  pc=0x%" PRIXXWORD "\n", t.pc);
 		for (size_t i = 0; i < sizeof irname / sizeof irname[0]; i += 4) {
 			printf("%*.*s=0x%" PRIXXWORD " %*.*s=0x%" PRIXXWORD " "
 			       "%*.*s=0x%" PRIXXWORD " %*.*s=0x%" PRIXXWORD "\n",
