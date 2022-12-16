@@ -7,7 +7,7 @@ typedef uint_least32_t xword_t;
 
 struct insn {
 	uint_least8_t opcode, funct3, funct7, rs1, rs2, rd;
-	xword_t iimm, simm, bimm, uimm;
+	xword_t iimm, simm, bimm, uimm, jimm;
 };
 
 static struct insn decode(uint_least32_t x) {
@@ -22,6 +22,7 @@ static struct insn decode(uint_least32_t x) {
 
 	i.simm = i.iimm & ~MASK(0, 5) | i.rd;
 	i.bimm = i.simm & ~(1 | MASK(11, 12)) | (i.simm & 1) << 11;
+	i.jimm = i.iimm & ~(1 | MASK(11, 20)) | (i.iimm & 1) << 11 | i.uimm & MASK(12, 20);
 
 	return i;
 }
@@ -61,19 +62,23 @@ int main(int argc, char **argv) {
 		           (NB: offset is from *start* of jump)
 		   U-type: FEDCB537 lui a0, 0xFEDCB
 		           0110111 rd=10 U=0xFEDCB000
+		   J-type: A550A0EF foo: .skip 0xF55AC; jal ra, foo
+		           1101111 rd=1 J=0xFFF0AA54
+		           (NB: ditto, but *end* of jump in rd)
 		 */
 
 		printf("%s %s %s rd=%u (%.*s) rs1=%u (%.*s) rs2=%u (%.*s)\n"
 		       "\tI = 0x%" PRIXLEAST32 "\n"
 		       "\tS = 0x%" PRIXLEAST32 "\n"
 		       "\tB = 0x%" PRIXLEAST32 "\n"
-		       "\tU = 0x%" PRIXLEAST32 "\n",
+		       "\tU = 0x%" PRIXLEAST32 "\n"
+		       "\tJ = 0x%" PRIXLEAST32 "\n",
 		       binary(opcode, sizeof opcode, i.opcode),
 		       binary(funct3, sizeof funct3, i.funct3),
 		       binary(funct7, sizeof funct7, i.funct7),
 		       (unsigned)i.rd,  (int)sizeof irname[0], irname[i.rd],
 		       (unsigned)i.rs1, (int)sizeof irname[0], irname[i.rs1],
 		       (unsigned)i.rs2, (int)sizeof irname[0], irname[i.rs2],
-		       i.iimm, i.simm, i.bimm, i.uimm);
+		       i.iimm, i.simm, i.bimm, i.uimm, i.jimm);
 	}
 }
