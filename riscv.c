@@ -7,7 +7,7 @@ typedef uint_least32_t xword_t;
 
 struct insn {
 	uint_least8_t opcode, funct3, funct7, rs1, rs2, rd;
-	xword_t iimm;
+	xword_t iimm, simm;
 };
 
 static struct insn decode(uint_least32_t x) {
@@ -19,6 +19,8 @@ static struct insn decode(uint_least32_t x) {
 	i.rs1    = BITS(x, 15, 20);
 	i.rs2    = BITS(x, 20, 25); i.iimm = (BITS(x, 20, 32) ^ 1 << 11) - (1 << 11);
 	i.funct7 = BITS(x, 25, 32);
+
+	i.simm = i.iimm & ~MASK(0, 5) | i.rd;
 
 	return i;
 }
@@ -51,16 +53,19 @@ int main(int argc, char **argv) {
 		           0110011 101 0100000 rd=10 rs1=11 rs2=12
 		   I-type: A555C513 xori a0, a1, ~0x5AA
 		           0010011 100 rd=10 rs1=11 I=0xFFFFFA55
+		   S-type: AAA5A2A3 sw a0, ~0x55A(a1)
+		           0100011 010 rs1=11 rs2=10 S=0xFFFFFAA5
 		 */
 
 		printf("%s %s %s rd=%u (%.*s) rs1=%u (%.*s) rs2=%u (%.*s)\n"
-		       "\tI = 0x%" PRIXLEAST32 "\n",
+		       "\tI = 0x%" PRIXLEAST32 "\n"
+		       "\tS = 0x%" PRIXLEAST32 "\n",
 		       binary(opcode, sizeof opcode, i.opcode),
 		       binary(funct3, sizeof funct3, i.funct3),
 		       binary(funct7, sizeof funct7, i.funct7),
 		       (unsigned)i.rd,  (int)sizeof irname[0], irname[i.rd],
 		       (unsigned)i.rs1, (int)sizeof irname[0], irname[i.rs1],
 		       (unsigned)i.rs2, (int)sizeof irname[0], irname[i.rs2],
-		       i.iimm);
+		       i.iimm, i.simm);
 	}
 }

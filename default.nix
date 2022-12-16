@@ -8,7 +8,7 @@ stdenv.mkDerivation {
 	name = "riscv";
 	src = ./.;
 	postConfigure = ''
-		makeFlagsArray+=(CPPFLAGS='-std=c99 -Wall -Wpedantic -Wno-shift-op-parentheses')
+		makeFlagsArray+=(CPPFLAGS='-std=c99 -Wall -Wpedantic -Wno-bitwise-op-parentheses -Wno-shift-op-parentheses')
 		makeFlagsArray+=(prefix="$prefix")
 	'';
 }
