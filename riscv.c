@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h> /* FIXME */
 
 #ifndef XWORD_BIT
 #define XWORD_BIT 32
@@ -22,8 +23,11 @@ typedef uint_least64_t xword_t;
 
 #endif
 
+#define XWORD_MAX ((XWORD_C(1) << XWORD_BIT - 1 << 1) - 1)
+
 #define MASK(L, H)    ((XWORD_C(1) << (H) - 1 << 1) - (XWORD_C(1) << (L)))
 #define BITS(X, L, H) (((X) & MASK(L, H)) >> (L))
+#define SIGN          (XWORD_C(1) << XWORD_BIT - 1)
 
 struct insn {
 	uint_least8_t opcode, funct3, funct7, rs1, rs2, rd;
@@ -47,6 +51,51 @@ static struct insn decode(uint_least32_t x) {
 	return i;
 }
 
+struct hart {
+	xword_t ireg[32];
+};
+
+static void mbz(unsigned x) {
+	if (x) abort(); /* FIXME */
+}
+
+static void aluint(struct hart *t, const struct insn *i) {
+	unsigned reg = i->opcode & 0x20;
+	xword_t in1 = t->ireg[i->rs1],
+	        in2 = reg ? t->ireg[i->rs2] : i->iimm,
+	        out;
+	switch (i->funct3) {
+	case 0: out = reg && i->funct7 ? in1 - in2 : in1 + in2; break;
+	case 1: mbz(i->funct7); out = in1 << (in2 & XWORD_BIT - 1); break;
+	case 2: mbz(reg && i->funct7); out = (in1 ^ SIGN) < (in2 ^ SIGN); break;
+	case 3: mbz(reg && i->funct7); out = in1 < in2; break;
+	case 4: mbz(reg && i->funct7); out = in1 ^ in2; break;
+	case 5: mbz(i->funct7 & ~0x20u);
+	        out = i->funct7 && in1 & SIGN
+	            ? ~(~in1 >> (in2 & XWORD_BIT - 1))
+	            :    in1 >> (in2 & XWORD_BIT - 1);
+	        break;
+	case 6: mbz(reg && i->funct7); out = in1 | in2; break;
+	case 7: mbz(reg && i->funct7); out = in1 & in2; break;
+	}
+	if (i->rd) t->ireg[i->rd] = out & XWORD_MAX;
+}
+
+static void alu(struct hart *t, const struct insn *i) {
+	switch (i->funct7) {
+	case 0x00: case 0x20: aluint(t, i); break;
+	default: abort(); /* FIXME */
+	}
+}
+
+static void execute(struct hart *t, const struct insn *i) {
+	switch (i->opcode) {
+	case 0x13: aluint(t, i); break;
+	case 0x33: alu(t, i); break;
+	default: abort(); /* FIXME */
+	}
+}
+
 /* FIXME move to a separate frontend */
 #include <inttypes.h>
 #include <stdio.h>
@@ -66,8 +115,25 @@ const char irname[][4] = {
 };
 
 int main(int argc, char **argv) {
-	uint_least32_t x;
-	while (scanf("%" SCNxLEAST32, &x) >= 1) {
+	struct hart t = {0};
+
+	for (;;) {
+		for (size_t i = 0; i < sizeof irname / sizeof irname[0]; i += 4) {
+			printf("%*.*s=0x%" PRIXXWORD " %*.*s=0x%" PRIXXWORD " "
+			       "%*.*s=0x%" PRIXXWORD " %*.*s=0x%" PRIXXWORD "\n",
+			       (int)sizeof irname[0], (int)sizeof irname[0],
+			       irname[i],   t.ireg[i],
+			       (int)sizeof irname[0], (int)sizeof irname[0],
+			       irname[i+1], t.ireg[i+1],
+			       (int)sizeof irname[0], (int)sizeof irname[0],
+			       irname[i+2], t.ireg[i+2],
+			       (int)sizeof irname[0], (int)sizeof irname[0],
+			       irname[i+3], t.ireg[i+3]);
+		}
+
+		uint_least32_t x;
+		if (scanf("%" SCNxLEAST32, &x) < 1) break;
+
 		struct insn i = decode(x);
 		char opcode[8], funct3[4], funct7[8];
 
@@ -100,5 +166,7 @@ int main(int argc, char **argv) {
 		       (unsigned)i.rs1, (int)sizeof irname[0], irname[i.rs1],
 		       (unsigned)i.rs2, (int)sizeof irname[0], irname[i.rs2],
 		       i.iimm, i.simm, i.bimm, i.uimm, i.jimm);
+
+		execute(&t, &i);
 	}
 }
