@@ -108,9 +108,75 @@ static void alwint(struct hart *t, const struct insn *i) {
 }
 #endif
 
+static xword_t mulhu(xword_t x, xword_t y) {
+	xword_t a = x >> XWORD_BIT / 2,
+	        b = x & (XWORD_C(1) << XWORD_BIT / 2) - 1,
+	        c = y >> XWORD_BIT / 2,
+	        d = y & (XWORD_C(1) << XWORD_BIT / 2) - 1,
+	        p = a * d, q = b * c,
+	        z = a * c + (p >> XWORD_BIT / 2) + (q >> XWORD_BIT / 2);
+	p &= (XWORD_C(1) << XWORD_BIT / 2) - 1;
+	q &= (XWORD_C(1) << XWORD_BIT / 2) - 1;
+	return z + (p + q + (b * d >> XWORD_BIT / 2) >> XWORD_BIT / 2);
+}
+
+static void alumul(struct hart *t, const struct insn *i) {
+	xword_t in1 = t->ireg[i->rs1],
+	        in2 = t->ireg[i->rs2],
+	        neg = 0,
+	        out;
+	switch (i->funct3) {
+	case 0: out = in1 * in2; break;
+	case 1: neg = (in1 ^ in2) & SIGN;
+	        in2 = in2 & SIGN ? -in2 & XWORD_MAX : in2;
+	        goto mulhsu;
+	case 2: neg = in1 & SIGN;
+	mulhsu: in1 = in1 & SIGN ? -in1 & XWORD_MAX : in1;
+	case 3: out = mulhu(in1, in2); break;
+	case 4: neg = (in1 ^ in2) & SIGN;
+	        in1 = in1 & SIGN ? -in1 & XWORD_MAX : in1;
+	        in2 = in2 & SIGN ? -in2 & XWORD_MAX : in2;
+	case 5: out = in2 ? in1 / in2 : neg ? 1 : -1; break;
+	case 6: neg = in1 & SIGN;
+	        in1 = in1 & SIGN ? -in1 & XWORD_MAX : in1;
+	        in2 = in2 & SIGN ? -in2 & XWORD_MAX : in2;
+	case 7: out = in2 ? in1 % in2 : in1; break;
+	}
+	if (i->rd) t->ireg[i->rd] = (neg ? -out : out) & XWORD_MAX;
+}
+
+#if XWORD_BIT > 32
+static void alwmul(struct hart *t, const struct insn *i) {
+	xword_t in1 = t->ireg[i->rs1],
+	        in2 = t->ireg[i->rs2],
+	        neg = 0,
+	        out;
+	switch (i->funct3) {
+	case 0: out = in1 * in2; break;
+	case 4: neg = (in1 ^ in2) & XWORD_C(1) << 31;
+	        in1 = in1 & XWORD_C(1) << 31 ? -in1 : in1;
+	        in2 = in2 & XWORD_C(1) << 31 ? -in2 : in2;
+	case 5: in1 &= (XWORD_C(1) << 32) - 1;
+	        in2 &= (XWORD_C(1) << 32) - 1;
+	        out = in2 ? in1 / in2 : neg ? 1 : -1; break;
+	case 6: neg = in1 & XWORD_C(1) << 31;
+	        in1 = in1 & XWORD_C(1) << 31 ? -in1 : in1;
+	        in2 = in2 & XWORD_C(1) << 31 ? -in2 : in2;
+	case 7: in1 &= (XWORD_C(1) << 32) - 1;
+	        in2 &= (XWORD_C(1) << 32) - 1;
+	        out = in2 ? in1 % in2 : in1; break;
+	default: abort(); /* FIXME */
+	}
+	out &= (XWORD_C(1) << 32) - 1;
+	out = (out ^ XWORD_C(1) << 31) - (XWORD_C(1) << 31);
+	if (i->rd) t->ireg[i->rd] = (neg ? -out : out) & XWORD_MAX;
+}
+#endif
+
 static void alu(struct hart *t, const struct insn *i) {
 	switch (i->funct7) {
 	case 0x00: case 0x20: aluint(t, i); break;
+	case 0x01: alumul(t, i); break;
 	default: abort(); /* FIXME */
 	}
 }
@@ -119,6 +185,7 @@ static void alu(struct hart *t, const struct insn *i) {
 static void alw(struct hart *t, const struct insn *i) {
 	switch (i->funct7) {
 	case 0x00: case 0x20: alwint(t, i); break;
+	case 0x01: alwmul(t, i); break;
 	default: abort(); /* FIXME */
 	}
 }
