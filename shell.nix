@@ -2,7 +2,7 @@
 
 { pkgs ? import <nixpkgs> { }
 , gdb ? pkgs.gdb
-, stdenv ? pkgs.llvmPackages_latest.stdenv
+, stdenv ? pkgs.stdenv
 , valgrind ? pkgs.valgrind
 }:
 

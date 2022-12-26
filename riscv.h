@@ -25,7 +25,7 @@ typedef uint_least64_t xword_t;
 #define XWORD_MAX ((XWORD_C(1) << XWORD_BIT - 1 << 1) - 1)
 
 struct insn {
-	uint_least8_t opcode, funct3, funct7, rs1, rs2, rd;
+	unsigned opcode : 7, funct3 : 3, funct7 : 7, rs1 : 5, rs2 : 5, rd : 5;
 	xword_t iimm, simm, bimm, uimm, jimm;
 };
 
