@@ -193,7 +193,7 @@ static void jalr(struct hart *t, const struct insn *i) {
 }
 
 static void ldr(struct hart *t, const struct insn *i) {
-	uint_least8_t *restrict m;
+	unsigned char *restrict m;
 	xword_t a = t->ireg[i->rs1] + i->iimm & XWORD_MAX,
 	        x = 0,
 	        s = 0;
@@ -231,7 +231,7 @@ static void ldr(struct hart *t, const struct insn *i) {
 static void str(struct hart *t, const struct insn *i) {
 	xword_t a = t->ireg[i->rs1] + i->simm & XWORD_MAX,
 	        x = t->ireg[i->rs2];
-	uint_least8_t *restrict m;
+	unsigned char *restrict m;
 	switch (i->funct3) {
 	case 0: m = map(t, a, 1); goto byte;
 	case 1: m = map(t, a, 2); goto half;

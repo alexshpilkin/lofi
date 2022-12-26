@@ -37,5 +37,5 @@ struct hart {
 
 void execute(struct hart *, const struct insn *);
 
-uint_least8_t *map(struct hart *t, xword_t a, xword_t n);
+unsigned char *map(struct hart *t, xword_t a, xword_t n);
 /* FIXME unmap? */

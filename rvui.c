@@ -9,7 +9,7 @@
 static const char *name;
 static unsigned char *restrict elf; static size_t len;
 
-static uint_least8_t elfb(size_t off) {
+static unsigned char elfb(size_t off) {
 	if (off >= len) {
 		fprintf(stderr, "%s: ELF truncated\n", name);
 		exit(EXIT_FAILURE);

@@ -6,11 +6,11 @@
 
 struct cpu {
 	struct hart hart;
-	uint_least8_t *restrict image;
+	unsigned char *restrict image;
 	size_t size;
 };
 
-uint_least8_t *map(struct hart *t, xword_t addr, xword_t size) {
+unsigned char *map(struct hart *t, xword_t addr, xword_t size) {
 	struct cpu *c = (struct cpu *)t;
 	if (addr & size - 1) abort(); /* FIXME */
 	if (addr >= c->size || (addr + size & XWORD_MAX) >= c->size) abort(); /* FIXME */
@@ -32,7 +32,7 @@ const char irname[][4] = {
 };
 
 int main(int argc, char **argv) {
-	uint_least8_t image[128] = {0};
+	unsigned char image[128] = {0};
 	struct cpu c = {0};
 	c.image = image; c.size = sizeof image / sizeof image[0];
 
