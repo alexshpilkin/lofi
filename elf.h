@@ -28,3 +28,23 @@
 /* xword_t entry, phoff, shoff; */
 /* uint32_t flags; */
 /* uint16_t ehsize, phentsize, phnum, shentsize, shnum, shstrndx; */
+
+/* Program header (32-bit) */
+/* uint32_t type; */
+#define PT_NULL 0
+#define PT_LOAD 1
+#define PT_NOTE 4
+#define PT_PHDR 6
+#define PT_RISCV_ATTRIBUTES 0x70000003
+/* uint32_t offset, vaddr, paddr; */
+/* uint32_t filesz, memsz; */
+/* uint32_t flags; */
+#define PF_X 1
+#define PF_W 2
+#define PF_R 4
+/* uint32_t align; */
+
+/* Program header (64-bit) */
+/* uint32_t type, flags; */
+/* uint64_t offset, vaddr, paddr; */
+/* uint64_t filesz, memsz, align; */

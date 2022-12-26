@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "elf.h"
 #include "riscv.h"
@@ -38,6 +39,12 @@ static size_t elfz(size_t off) {
 	return x;
 }
 
+struct cpu {
+	struct hart hart;
+	unsigned char *image;
+	xword_t base, size;
+};
+
 int main(int argc, char **argv) {
 	const char *err;
 	FILE *fp; size_t lim = 0;
@@ -54,10 +61,7 @@ int main(int argc, char **argv) {
 		if (len == lim) {
 			unsigned char *mem;
 			size_t siz = lim ? lim * 2 : BUFSIZ;
-			if (siz < lim || !(mem = realloc(elf, siz))) {
-				perror(argv[0]);
-				exit(EXIT_FAILURE);
-			}
+			if (siz < lim || !(mem = realloc(elf, siz))) goto oom;
 			elf = mem; lim = siz;
 		}
 		len += fread(elf + len, 1, lim - len, fp);
@@ -98,9 +102,50 @@ int main(int argc, char **argv) {
 	err = "bad ELF header";
 	if (ehsize < OFFSET + 12) goto bad;
 
+	struct cpu c = {0};
+	c.hart.pc = entry;
+
+	for (size_t i = 0; i < phnum; i++) {
+		size_t base = phoff + i*phentsize;
+		uint_least32_t type = elfw(base);
+		size_t  offset = elfz(base + XWORD_BIT/8);
+		xword_t vaddr  = elfx(base + XWORD_BIT/8 * 2);
+		size_t  filesz = elfz(base + XWORD_BIT/8 * 4),
+		        memsz  = elfz(base + XWORD_BIT/8 * 5);
+
+		err = "bad ELF segment type";
+		if (type == PT_NULL || type == PT_NOTE || type == PT_RISCV_ATTRIBUTES)
+			continue;
+		if (type != PT_LOAD && type != PT_PHDR)
+			goto bad;
+
+		if (!c.base) {
+			c.base = vaddr; c.size = memsz;
+			if (!(c.image = malloc(c.size))) goto oom;
+		}
+		if (c.base > vaddr) {
+			c.base = vaddr; c.size += c.base - vaddr;
+			if (!(c.image = realloc(c.image, c.size))) goto oom;
+		}
+		if (c.base + c.size < vaddr + memsz) {
+			c.size = vaddr + memsz - c.base;
+			if (!(c.image = realloc(c.image, c.size))) goto oom;
+		}
+		if (filesz) {
+			elfb(offset + filesz - 1); /* probe */
+			memcpy(&c.image[vaddr-c.base], &elf[offset], filesz);
+		}
+		memset(&c.image[vaddr-c.base+filesz], 0, memsz - filesz);
+	}
+
+	(void)shoff; (void)shentsize; (void)shnum;
+
 	return EXIT_SUCCESS;
 
 bad:
 	fprintf(stderr, "%s: %s\n", name, err);
+	return EXIT_FAILURE;
+oom:
+	perror(argv[0]);
 	return EXIT_FAILURE;
 }
