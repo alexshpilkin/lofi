@@ -2,11 +2,12 @@
 
 CFLAGS = -g -O2
 
-all: repl
+all: repl rvui
 repl: repl.o riscv.o
-repl.o riscv.o: riscv.h
+rvui.o: elf.h
+repl.o riscv.o rvui.o: riscv.h
 clean:
-	rm -f repl repl.o riscv.o
+	rm -f repl rvui repl.o riscv.o rvui.o
 install:
 	mkdir -p $(DESTDIR)$(prefix)/bin
-	install -m 755 repl $(DESTDIR)$(prefix)/bin
+	install -m 755 repl rvui $(DESTDIR)$(prefix)/bin
