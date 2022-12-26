@@ -2,9 +2,11 @@
 
 CFLAGS = -g -O2
 
-all: riscv
+all: repl
+repl: repl.o riscv.o
+repl.o riscv.o: riscv.h
 clean:
-	rm -f riscv riscv.o
+	rm -f repl repl.o riscv.o
 install:
 	mkdir -p $(DESTDIR)$(prefix)/bin
-	install -m 755 riscv $(DESTDIR)$(prefix)/bin
+	install -m 755 repl $(DESTDIR)$(prefix)/bin

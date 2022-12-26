@@ -1,4 +1,5 @@
+*.o
 .direnv
 /result
 /result-*
-/riscv
+/repl
