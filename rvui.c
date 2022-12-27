@@ -138,7 +138,41 @@ int main(int argc, char **argv) {
 		memset(&c.image[vaddr-c.base+filesz], 0, memsz - filesz);
 	}
 
-	(void)shoff; (void)shentsize; (void)shnum;
+	size_t symoff, symsize = 0, symentsize, strndx = 0;
+	for (size_t i = 0; i < shnum; i++) {
+		size_t base = shoff + i*shentsize;
+		if (elfw(base + 4) == SHT_SYMTAB) {
+			symoff     = elfz(base + 8 + XWORD_BIT/8 * 2);
+			symsize    = elfz(base + 8 + XWORD_BIT/8 * 3);
+			strndx     = elfw(base + 8 + XWORD_BIT/8 * 4);
+			symentsize = elfz(base + 16 + XWORD_BIT/8 * 5);
+			break;
+		}
+	}
+
+	size_t stroff, strsize = 0;
+	if (strndx && strndx < shnum) {
+		size_t base = shoff + strndx*shentsize;
+		err = "bad ELF string table";
+		if (elfw(base + 4) != SHT_STRTAB) goto bad;
+		stroff  = elfz(base + 8 + XWORD_BIT/8 * 2);
+		strsize = elfz(base + 8 + XWORD_BIT/8 * 3);
+		if (elfb(stroff + strsize - 1)) goto bad; /* FIXME overflow */
+	}
+
+	xword_t sigbeg = 0, sigend = 0;
+	for (size_t base = symoff; base < symoff + symsize; base += symentsize) {
+		uint32_t name = elfw(base);
+		xword_t value = elfx(base + XWORD_BIT/8);
+		err = "bad ELF symbol table";
+		if (name >= strsize) goto bad;
+		if (!strcmp((char *)&elf[stroff+name], "begin_signature"))
+			sigbeg = value;
+		else if (!strcmp((char *)&elf[stroff+name], "end_signature"))
+			sigend = value;
+	}
+
+	(void)sigbeg; (void)sigend;
 
 	return EXIT_SUCCESS;
 

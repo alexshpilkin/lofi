@@ -48,3 +48,25 @@
 /* uint32_t type, flags; */
 /* uint64_t offset, vaddr, paddr; */
 /* uint64_t filesz, memsz, align; */
+
+/* Section header */
+/* uint32_t name; */
+/* uint32_t type; */
+#define SHT_SYMTAB 2
+#define SHT_STRTAB 3
+/* xword_t flags; */
+/* xword_t addr, offset, size; */
+/* uint32_t link, info; */
+/* xword_t addralign, entsize; */
+
+/* Symbol table entry (32-bit) */
+/* uint32_t name; */
+/* uint32_t value, size; */
+/* uint8_t info, other; */
+/* uint16_t shndx; */
+
+/* Symbol table entry (64-bit) */
+/* uint32_t name; */
+/* uint8_t  info, other; */
+/* uint16_t shndx; */
+/* uint64_t value, size; */
