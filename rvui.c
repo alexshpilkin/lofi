@@ -53,6 +53,27 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size) {
 	return &c->image[addr - c->base];
 }
 
+void ecall(struct hart *t) {
+	if (t->ireg[17 /* a7 */] == 93 /* __NR_exit */) {
+		/* FIXME write out signature */
+		exit(t->ireg[10]);
+	}
+	abort();
+}
+
+void csrread(struct hart *t, xword_t *out, unsigned csr) {
+	*out = 0; /* FIXME */
+}
+void csrxchg(struct hart *t, xword_t *out, unsigned csr, xword_t val) {
+	*out = 0; /* FIXME */
+}
+void csrxset(struct hart *t, xword_t *out, unsigned csr, xword_t val) {
+	*out = 0; /* FIXME */
+}
+void csrxclr(struct hart *t, xword_t *out, unsigned csr, xword_t val) {
+	*out = 0; /* FIXME */
+}
+
 int main(int argc, char **argv) {
 	const char *err;
 	FILE *fp; size_t lim = 0;

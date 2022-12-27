@@ -17,6 +17,23 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size) {
 	return &c->image[addr];
 }
 
+void ecall(struct hart *t) {
+	abort(); /* FIXME */
+}
+
+void csrread(struct hart *t, xword_t *out, unsigned csr) {
+	abort(); /* FIXME */
+}
+void csrxchg(struct hart *t, xword_t *out, unsigned csr, xword_t val) {
+	abort(); /* FIXME */
+}
+void csrxset(struct hart *t, xword_t *out, unsigned csr, xword_t val) {
+	abort(); /* FIXME */
+}
+void csrxclr(struct hart *t, xword_t *out, unsigned csr, xword_t val) {
+	abort(); /* FIXME */
+}
+
 static char *binary(char *s, size_t n, uint_least32_t w) {
 	s[n-1] = '\0';
 	for (size_t i = n - 2; i < n; i--)

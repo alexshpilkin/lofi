@@ -262,6 +262,30 @@ static void mem(struct hart *t, const struct insn *i) {
 	}
 }
 
+static void super(struct hart *t, const struct insn *i) {
+	switch (i->iimm) {
+	case 0x000: if (!i->rs1 && !i->rd) { ecall(t); break; }
+	default: abort(); /* FIXME */
+	}
+}
+
+static void hyper(struct hart *t, const struct insn *i) {
+	abort(); /* FIXME */
+}
+
+static void sys(struct hart *t, const struct insn *i) {
+	xword_t in1 = i->funct3 & 4 ? i->rs1 : t->ireg[i->rs1],
+	        nul = 0, *out = i->rd ? &t->ireg[i->rd] : &nul;
+	unsigned csr = i->iimm & 0xFFF;
+	switch (i->funct3) {
+	case 0: super(t, i); break;
+	case 4: hyper(t, i); break;
+	case 1: case 5: csrxchg(t, out, csr, in1); break;
+	case 2: case 6: if (i->rs1) csrxset(t, out, csr, in1); else csrread(t, out, csr); break;
+	case 3: case 7: if (i->rs1) csrxclr(t, out, csr, in1); else csrread(t, out, csr); break;
+	}
+}
+
 void execute(struct hart *t, const struct insn *i) {
 	switch (i->opcode) {
 	case 0x03: ldr(t, i); break;
@@ -280,6 +304,7 @@ void execute(struct hart *t, const struct insn *i) {
 	case 0x63: bcc(t, i); break;
 	case 0x67: jalr(t, i); break;
 	case 0x6F: jal(t, i); break;
+	case 0x73: sys(t, i); break;
 	default: abort(); /* FIXME */
 	}
 }

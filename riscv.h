@@ -39,3 +39,10 @@ void execute(struct hart *, const struct insn *);
 
 unsigned char *map(struct hart *t, xword_t a, xword_t n);
 /* FIXME unmap? */
+
+void ecall(struct hart *);
+
+void csrread(struct hart *, xword_t *, unsigned);
+void csrxchg(struct hart *, xword_t *, unsigned, xword_t);
+void csrxset(struct hart *, xword_t *, unsigned, xword_t);
+void csrxclr(struct hart *, xword_t *, unsigned, xword_t);
