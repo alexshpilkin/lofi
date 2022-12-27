@@ -32,7 +32,7 @@ struct insn {
 struct insn decode(xword_t);
 
 struct hart {
-	xword_t pc, ireg[32];
+	xword_t ireg[32], pc, nextpc;
 };
 
 void execute(struct hart *, const struct insn *);

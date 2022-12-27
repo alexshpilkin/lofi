@@ -178,18 +178,18 @@ static void bcc(struct hart *t, const struct insn *i) {
 	case 7: flg = in1 >= in2; break;
 	default: abort(); /* FIXME */
 	}
-	if (flg) t->pc = t->pc + i->bimm & XWORD_MAX; /* FIXME - 4 ? */
+	if (flg) t->nextpc = t->pc + i->bimm & XWORD_MAX;
 }
 
 static void jal(struct hart *t, const struct insn *i) {
 	if (i->rd) t->ireg[i->rd] = t->pc + 4 & XWORD_MAX;
-	t->pc = t->pc + i->jimm & XWORD_MAX; /* FIXME - 4 ? */
+	t->nextpc = t->pc + i->jimm & XWORD_MAX;
 }
 
 static void jalr(struct hart *t, const struct insn *i) {
 	xword_t in = t->ireg[i->rs1];
 	if (i->rd) t->ireg[i->rd] = t->pc + 4 & XWORD_MAX;
-	t->pc = in + i->iimm & XWORD_MAX - 1; /* FIXME - 4 ? */
+	t->nextpc = in + i->iimm & XWORD_MAX - 1;
 }
 
 static void ldr(struct hart *t, const struct insn *i) {

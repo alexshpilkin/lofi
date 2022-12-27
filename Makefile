@@ -4,6 +4,7 @@ CFLAGS = -g -O2
 
 all: repl rvui
 repl: repl.o riscv.o
+rvui: rvui.o riscv.o
 rvui.o: elf.h
 repl.o riscv.o rvui.o: riscv.h
 clean:

@@ -107,5 +107,6 @@ int main(int argc, char **argv) {
 		       i.iimm, i.simm, i.bimm, i.uimm, i.jimm);
 
 		execute(&c.hart, &i);
+		c.hart.pc = c.hart.nextpc;
 	}
 }

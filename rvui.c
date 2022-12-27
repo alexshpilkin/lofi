@@ -45,6 +45,14 @@ struct cpu {
 	xword_t base, size;
 };
 
+/* FIXME should use when loading */
+unsigned char *map(struct hart *t, xword_t addr, xword_t size) {
+	struct cpu *c = (struct cpu *)t;
+	if (addr & size - 1) abort(); /* FIXME */
+	if (addr - c->base >= c->size || (addr - c->base + size & XWORD_MAX) >= c->size) abort();
+	return &c->image[addr - c->base];
+}
+
 int main(int argc, char **argv) {
 	const char *err;
 	FILE *fp; size_t lim = 0;
@@ -172,7 +180,22 @@ int main(int argc, char **argv) {
 			sigend = value;
 	}
 
-	(void)sigbeg; (void)sigend;
+	for (;;) {
+		xword_t pc = c.hart.pc;
+		unsigned char *ip = map(&c.hart, pc, 4);
+		uint_least32_t x = ip[0]       |
+		   (uint_least16_t)ip[1] <<  8 |
+		   (uint_least32_t)ip[2] << 16 |
+		   (uint_least32_t)ip[3] << 24;
+		c.hart.nextpc = pc + 4 & XWORD_MAX;
+
+		struct insn i = decode(x);
+		execute(&c.hart, &i);
+		if (c.hart.nextpc & 3) abort(); /* FIXME imprecise */
+		c.hart.pc = c.hart.nextpc;
+	}
+
+	(void)sigbeg; (void)sigend; /* FIXME unreachable */
 
 	return EXIT_SUCCESS;
 
