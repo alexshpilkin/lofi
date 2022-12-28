@@ -265,6 +265,7 @@ static void mem(struct hart *t, const struct insn *i) {
 static void super(struct hart *t, const struct insn *i) {
 	switch (i->iimm) {
 	case 0x000: if (!i->rs1 && !i->rd) { ecall(t); break; }
+	case 0x302: if (!i->rs1 && !i->rd) { /* FIXME mret */ break; }
 	default: abort(); /* FIXME */
 	}
 }
