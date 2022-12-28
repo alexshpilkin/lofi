@@ -1,5 +1,8 @@
+*.dut
 *.o
+*.ref
 .direnv
+/check.mk
 /result
 /result-*
 /repl

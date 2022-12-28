@@ -2,15 +2,28 @@
 
 { pkgs ? import <nixpkgs> { }
 , stdenv ? pkgs.stdenv
+, dtc ? pkgs.dtc
+, riscv-tests ? import ./riscv-tests.nix args
+, spike ? pkgs.spike
+, doCheck ? true
 , xlen ? 32
-}:
+, ...
+}@args:
 
 stdenv.mkDerivation {
-	name = "riscv";
+	name = "lofi";
 	src = ./.;
 
-	CPPFLAGS = "-DXWORD_BIT=${toString xlen} -std=c99 -Wall -Wpedantic -Wno-parentheses";
+	checkInputs = [ dtc spike ];
+
+	CPPFLAGS = "-std=c99 -Wall -Wpedantic -Wno-parentheses";
+	makeFlags = [
+		"TESTS=${riscv-tests}/share/riscv-tests"
+		"XLEN=${toString xlen}"
+	];
 	postConfigure = ''
 		makeFlagsArray+=(prefix="$prefix")
 	'';
+	inherit doCheck;
+	checkTarget = "check";
 }

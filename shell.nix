@@ -2,10 +2,13 @@
 
 { pkgs ? import <nixpkgs> { }
 , gdb ? pkgs.gdb
-, stdenv ? pkgs.stdenv
+, lofi ? import ./. args
 , valgrind ? pkgs.valgrind
-}:
+, xlen ? 32
+, ...
+}@args:
 
-pkgs.mkShell.override { inherit stdenv; } {
+pkgs.mkShell {
 	packages = [ gdb valgrind ];
+	inputsFrom = [ lofi ];
 }
