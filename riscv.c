@@ -46,8 +46,8 @@ static void aluint(struct hart *t, const struct insn *i) {
 	case 4: mbz(reg && i->funct7); out = in1 ^ in2; break;
 	case 5: mbz(i->funct7 & ~(unsigned)MASK7 & ~0x20u);
 	        out = i->funct7 & ~(unsigned)MASK7 && in1 & SIGN
-	            ? ~(~in1 >> (in2 & XWORD_BIT - 1))
-	            :    in1 >> (in2 & XWORD_BIT - 1);
+	            ? ~((~in1 & XWORD_MAX) >> (in2 & XWORD_BIT - 1))
+	            :     in1              >> (in2 & XWORD_BIT - 1);
 	        break;
 	case 6: mbz(reg && i->funct7); out = in1 | in2; break;
 	case 7: mbz(reg && i->funct7); out = in1 & in2; break;
@@ -66,8 +66,8 @@ static void alwint(struct hart *t, const struct insn *i) {
 	case 1: mbz(i->funct7); out = in1 << (in2 & 31); break;
 	case 5: mbz(i->funct7 & ~0x20u);
 	        out = i->funct7 && in1 & XWORD_C(1) << 31
-	            ? ~(~in1 >> (in2 & 31))
-	            :    in1 >> (in2 & 31);
+	            ? ~((~in1 & (XWORD_C(1) << 32) - 1) >> (in2 & 31))
+	            :    (in1 & (XWORD_C(1) << 32) - 1) >> (in2 & 31);
 	        break;
 	default: abort(); /* FIXME */
 	}
