@@ -29,6 +29,15 @@ static uint_least32_t elfw(size_t off) {
 #define ELFCLASS ELFCLASS32
 #endif
 
+static size_t elfz(size_t off) {
+	xword_t x = elfx(off);
+	if (x > SIZE_MAX) {
+		fprintf(stderr, "%s: ELF too large\n", name);
+		exit(EXIT_FAILURE);
+	}
+	return x;
+}
+
 int main(int argc, char **argv) {
 	const char *err;
 	FILE *fp; size_t lim = 0;
@@ -77,15 +86,15 @@ int main(int argc, char **argv) {
 	err = "bad ELF version";
 	if (elfw(EI_NIDENT + 4) != EV_CURRENT) goto bad;
 
-	xword_t entry = elfx(EI_NIDENT + 8),
-	        phoff = elfx(EI_NIDENT + 8 + XWORD_BIT/8),
-	        shoff = elfx(EI_NIDENT + 8 + XWORD_BIT/8 * 2);
+	xword_t entry = elfx(EI_NIDENT + 8);
+	size_t  phoff = elfz(EI_NIDENT + 8 + XWORD_BIT/8),
+	        shoff = elfz(EI_NIDENT + 8 + XWORD_BIT/8 * 2);
 	enum { OFFSET = EI_NIDENT + 12 + XWORD_BIT/8 * 3 };
-	uint_least16_t ehsize    = elfh(OFFSET),
-	               phentsize = elfh(OFFSET +  2),
-	               phnum     = elfh(OFFSET +  4),
-	               shentsize = elfh(OFFSET +  6),
-	               shnum     = elfh(OFFSET +  8);
+	size_t ehsize    = elfh(OFFSET),
+	       phentsize = elfh(OFFSET +  2),
+	       phnum     = elfh(OFFSET +  4),
+	       shentsize = elfh(OFFSET +  6),
+	       shnum     = elfh(OFFSET +  8);
 	err = "bad ELF header";
 	if (ehsize < OFFSET + 12) goto bad;
 
