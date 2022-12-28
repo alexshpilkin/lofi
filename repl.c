@@ -13,7 +13,7 @@ struct cpu {
 unsigned char *map(struct hart *t, xword_t addr, xword_t size) {
 	struct cpu *c = (struct cpu *)t;
 	if (addr & size - 1) abort(); /* FIXME */
-	if (addr >= c->size || (addr + size & XWORD_MAX) >= c->size) abort(); /* FIXME */
+	if (addr >= c->size || size > c->size - addr) abort(); /* FIXME */
 	return &c->image[addr];
 }
 

@@ -42,7 +42,7 @@ static size_t elfz(size_t off) {
 struct cpu {
 	struct hart hart;
 	unsigned char *image;
-	xword_t base, size;
+	xword_t base, size; /* FIXME must have 0 < base || base + size < -1 */
 	xword_t sigbeg, sigend;
 };
 
@@ -50,8 +50,9 @@ struct cpu {
 unsigned char *map(struct hart *t, xword_t addr, xword_t size) {
 	struct cpu *c = (struct cpu *)t;
 	if (addr & size - 1) abort(); /* FIXME */
-	if (addr - c->base >= c->size || (addr - c->base + size & XWORD_MAX) >= c->size) abort();
-	return &c->image[addr - c->base];
+	addr -= c->base; /* wraps around on overflow */
+	if (addr >= c->size || size > c->size - addr) abort(); /* FIXME */
+	return &c->image[addr];
 }
 
 void ecall(struct hart *t) {
