@@ -77,16 +77,16 @@ static void alwint(struct hart *t, const struct insn *i) {
 }
 #endif
 
-static xword_t mulhu(xword_t x, xword_t y) {
+static xword_t mulhu(xword_t x, xword_t y, xword_t neg) {
 	xword_t a = x >> XWORD_BIT / 2,
 	        b = x & (XWORD_C(1) << XWORD_BIT / 2) - 1,
 	        c = y >> XWORD_BIT / 2,
 	        d = y & (XWORD_C(1) << XWORD_BIT / 2) - 1,
-	        p = a * d, q = b * c,
-	        z = a * c + (p >> XWORD_BIT / 2) + (q >> XWORD_BIT / 2);
-	p &= (XWORD_C(1) << XWORD_BIT / 2) - 1;
-	q &= (XWORD_C(1) << XWORD_BIT / 2) - 1;
-	return z + (p + q + (b * d >> XWORD_BIT / 2) >> XWORD_BIT / 2);
+	        p = a * d, q = b * c, r = a * c, s = b * d;
+	r += p >> XWORD_BIT / 2; p &= (XWORD_C(1) << XWORD_BIT / 2) - 1;
+	r += q >> XWORD_BIT / 2; q &= (XWORD_C(1) << XWORD_BIT / 2) - 1;
+	r += p + q + (s >> XWORD_BIT / 2) >> XWORD_BIT / 2;
+	return r + (neg && (p + q << XWORD_BIT / 2) + s & XWORD_MAX);
 }
 
 static void alumul(struct hart *t, const struct insn *i) {
@@ -101,7 +101,7 @@ static void alumul(struct hart *t, const struct insn *i) {
 	        goto mulhsu;
 	case 2: neg = in1 & SIGN;
 	mulhsu: in1 = in1 & SIGN ? -in1 & XWORD_MAX : in1;
-	case 3: out = mulhu(in1, in2); break;
+	case 3: out = mulhu(in1, in2, neg); break;
 	case 4: neg = (in1 ^ in2) & SIGN;
 	        in1 = in1 & SIGN ? -in1 & XWORD_MAX : in1;
 	        in2 = in2 & SIGN ? -in2 & XWORD_MAX : in2;
