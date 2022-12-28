@@ -1,6 +1,6 @@
 printf '.PHONY: check clean\n'
 for file in "$1"/isa/rv$2ui-p-*; do
-	case $file in *.*) continue;; esac
+	case $file in *.*|*-ma_data) continue;; esac
 	name=${file##*/}
 	printf '\n'
 	printf 'check: check-%s\n' $name

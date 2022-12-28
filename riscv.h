@@ -29,7 +29,7 @@ struct insn {
 	xword_t iimm, simm, bimm, uimm, jimm;
 };
 
-struct insn decode(xword_t);
+struct insn decode(uint_least32_t);
 
 struct hart {
 	xword_t ireg[32], pc, nextpc;

@@ -25,9 +25,18 @@ static uint_least32_t elfw(size_t off) {
 	return elfh(off) | (uint_least32_t)elfh(off + 2) << 16;
 }
 
+#if XWORD_BIT >= 64
+static uint_least64_t elfd(size_t off) {
+	return elfw(off) | (uint_least64_t)elfw(off + 4) << 32;
+}
+#endif
+
 #if XWORD_BIT == 32
 #define elfx elfw
 #define ELFCLASS ELFCLASS32
+#elif XWORD_BIT == 64
+#define elfx elfd
+#define ELFCLASS ELFCLASS64
 #endif
 
 static size_t elfz(size_t off) {
