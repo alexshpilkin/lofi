@@ -138,6 +138,10 @@ int main(int argc, char **argv) {
 	struct cpu c = {0};
 	c.hart.pc = entry;
 
+	err = "bad ELF segment table";
+	if (phnum > SIZE_MAX / phentsize || phoff + phnum*phentsize < phoff)
+		goto bad;
+
 	for (size_t i = 0; i < phnum; i++) {
 		size_t base = phoff + i*phentsize;
 		uint_least32_t type = elfw(base);
@@ -170,6 +174,10 @@ int main(int argc, char **argv) {
 		}
 		memset(&c.image[vaddr-c.base+filesz], 0, memsz - filesz);
 	}
+
+	err = "bad ELF section table";
+	if (shnum > SIZE_MAX / shentsize || shoff + shnum*shentsize < shoff)
+		goto bad;
 
 	size_t symoff, symsize = 0, symentsize, strndx = 0;
 	for (size_t i = 0; i < shnum; i++) {
