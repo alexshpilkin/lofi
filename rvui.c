@@ -43,6 +43,7 @@ struct cpu {
 	struct hart hart;
 	unsigned char *image;
 	xword_t base, size;
+	xword_t sigbeg, sigend;
 };
 
 /* FIXME should use when loading */
@@ -54,9 +55,11 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size) {
 }
 
 void ecall(struct hart *t) {
-	if (t->ireg[17 /* a7 */] == 93 /* __NR_exit */) {
-		/* FIXME write out signature */
-		exit(t->ireg[10]);
+	struct cpu *c = (struct cpu *)t;
+	if (c->hart.ireg[17 /* a7 */] == 93 /* __NR_exit */) {
+		for (xword_t a = c->sigbeg; a < c->sigend; a++)
+			printf("%.2x\n", *map(&c->hart, a, 1));
+		exit(c->hart.ireg[10]);
 	}
 	abort();
 }
@@ -189,16 +192,15 @@ int main(int argc, char **argv) {
 		if (elfb(stroff + strsize - 1)) goto bad; /* FIXME overflow */
 	}
 
-	xword_t sigbeg = 0, sigend = 0;
 	for (size_t base = symoff; base < symoff + symsize; base += symentsize) {
 		uint32_t name = elfw(base);
 		xword_t value = elfx(base + XWORD_BIT/8);
 		err = "bad ELF symbol table";
 		if (name >= strsize) goto bad;
 		if (!strcmp((char *)&elf[stroff+name], "begin_signature"))
-			sigbeg = value;
+			c.sigbeg = value;
 		else if (!strcmp((char *)&elf[stroff+name], "end_signature"))
-			sigend = value;
+			c.sigend = value;
 	}
 
 	for (;;) {
@@ -216,8 +218,7 @@ int main(int argc, char **argv) {
 		c.hart.pc = c.hart.nextpc;
 	}
 
-	(void)sigbeg; (void)sigend; /* FIXME unreachable */
-
+	/* unreachable */
 	return EXIT_SUCCESS;
 
 bad:
