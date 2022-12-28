@@ -136,9 +136,9 @@ static void alwmul(struct hart *t, const struct insn *i) {
 	        out = in2 ? in1 % in2 : in1; break;
 	default: abort(); /* FIXME */
 	}
-	out &= (XWORD_C(1) << 32) - 1;
+	out = (neg ? -out : out) & (XWORD_C(1) << 32) - 1;
 	out = (out ^ XWORD_C(1) << 31) - (XWORD_C(1) << 31);
-	if (i->rd) t->ireg[i->rd] = (neg ? -out : out) & XWORD_MAX;
+	if (i->rd) t->ireg[i->rd] = out & XWORD_MAX;
 }
 #endif
 
