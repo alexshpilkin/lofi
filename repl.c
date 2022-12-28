@@ -3,6 +3,7 @@
 #include <stdlib.h>
 
 #include "riscv.h"
+#include "rvinsn.h"
 
 struct cpu {
 	struct hart hart;
@@ -87,11 +88,10 @@ int main(int argc, char **argv) {
 			       c.image[i+14], c.image[i+15]);
 		}
 
-		uint_least32_t x;
-		if (scanf("%" SCNxLEAST32, &x) < 1) break;
+		uint_least32_t i;
+		if (scanf("%" SCNxLEAST32, &i) < 1) break;
 
-		struct insn i = decode(x);
-		char opcode[8], funct3[4], funct7[8];
+		char op[8], f3[4], f7[8];
 
 		/* R-type: 40C5D533 sra a0, a1, a2
 		           0110011 101 0100000 rd=10 rs1=11 rs2=12
@@ -115,15 +115,15 @@ int main(int argc, char **argv) {
 		       "\tB = 0x%" PRIXXWORD "\n"
 		       "\tU = 0x%" PRIXXWORD "\n"
 		       "\tJ = 0x%" PRIXXWORD "\n",
-		       binary(opcode, sizeof opcode, i.opcode),
-		       binary(funct3, sizeof funct3, i.funct3),
-		       binary(funct7, sizeof funct7, i.funct7),
-		       (unsigned)i.rd,  (int)sizeof irname[0], irname[i.rd],
-		       (unsigned)i.rs1, (int)sizeof irname[0], irname[i.rs1],
-		       (unsigned)i.rs2, (int)sizeof irname[0], irname[i.rs2],
-		       i.iimm, i.simm, i.bimm, i.uimm, i.jimm);
+		       binary(op, sizeof op, opcode(i)),
+		       binary(f3, sizeof f3, funct3(i)),
+		       binary(f7, sizeof f7, funct7(i)),
+		       (unsigned)rd(i),  (int)sizeof irname[0], irname[rd(i)],
+		       (unsigned)rs1(i), (int)sizeof irname[0], irname[rs1(i)],
+		       (unsigned)rs2(i), (int)sizeof irname[0], irname[rs2(i)],
+		       iimm(i), simm(i), bimm(i), uimm(i), jimm(i));
 
-		execute(&c.hart, &i);
+		execute(&c.hart, i);
 		c.hart.pc = c.hart.nextpc;
 	}
 }

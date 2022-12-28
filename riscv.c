@@ -2,27 +2,9 @@
 #include <stdlib.h> /* FIXME */
 
 #include "riscv.h"
+#include "rvinsn.h"
 
-#define MASK(L, H)    ((XWORD_C(1) << (H) - 1 << 1) - (XWORD_C(1) << (L)))
-#define BITS(X, L, H) (((X) & MASK(L, H)) >> (L))
-#define SIGN          (XWORD_C(1) << XWORD_BIT - 1)
-
-struct insn decode(uint_least32_t x) {
-	struct insn i = {0};
-
-	i.opcode = BITS(x,  0,  7); i.uimm = (x & MASK(12, 32) ^ XWORD_C(1) << 31) - (XWORD_C(1) << 31);
-	i.rd     = BITS(x,  7, 12);
-	i.funct3 = BITS(x, 12, 15);
-	i.rs1    = BITS(x, 15, 20);
-	i.rs2    = BITS(x, 20, 25); i.iimm = (BITS(x, 20, 32) ^ 1 << 11) - (1 << 11);
-	i.funct7 = BITS(x, 25, 32);
-
-	i.simm = i.iimm & ~MASK(0, 5) | i.rd;
-	i.bimm = i.simm & ~(1 | MASK(11, 12)) | (i.simm & 1) << 11;
-	i.jimm = i.iimm & ~(1 | MASK(11, 20)) | (i.iimm & 1) << 11 | i.uimm & MASK(12, 20);
-
-	return i;
-}
+#define SIGN (XWORD_C(1) << XWORD_BIT - 1)
 
 static void mbz(unsigned x) {
 	if (x) abort(); /* FIXME */
@@ -30,42 +12,42 @@ static void mbz(unsigned x) {
 
 /* FIXME alu/alw duplication */
 
-static void aluint(struct hart *t, const struct insn *i) {
+static void aluint(struct hart *t, uint_least32_t i) {
 	enum { MASK7 = XWORD_BIT / 32 - 1 }; /* shamt bleeds into funct7 */
-	unsigned reg = i->opcode & 0x20;
-	xword_t in1 = t->ireg[i->rs1],
-	        in2 = reg ? t->ireg[i->rs2] : i->iimm,
+	unsigned reg = opcode(i) & 0x20;
+	xword_t in1 = t->ireg[rs1(i)],
+	        in2 = reg ? t->ireg[rs2(i)] : iimm(i),
 	        out;
-	switch (i->funct3) {
-	case 0: out = reg && i->funct7 ? in1 - in2 : in1 + in2; break;
-	case 1: mbz(i->funct7 & ~(unsigned)MASK7);
+	switch (funct3(i)) {
+	case 0: out = reg && funct7(i) ? in1 - in2 : in1 + in2; break;
+	case 1: mbz(funct7(i) & ~(unsigned)MASK7);
 	        out = in1 << (in2 & XWORD_BIT - 1);
 	        break;
-	case 2: mbz(reg && i->funct7); out = (in1 ^ SIGN) < (in2 ^ SIGN); break;
-	case 3: mbz(reg && i->funct7); out = in1 < in2; break;
-	case 4: mbz(reg && i->funct7); out = in1 ^ in2; break;
-	case 5: mbz(i->funct7 & ~(unsigned)MASK7 & ~0x20u);
-	        out = i->funct7 & ~(unsigned)MASK7 && in1 & SIGN
+	case 2: mbz(reg && funct7(i)); out = (in1 ^ SIGN) < (in2 ^ SIGN); break;
+	case 3: mbz(reg && funct7(i)); out = in1 < in2; break;
+	case 4: mbz(reg && funct7(i)); out = in1 ^ in2; break;
+	case 5: mbz(funct7(i) & ~(unsigned)MASK7 & ~0x20u);
+	        out = funct7(i) & ~(unsigned)MASK7 && in1 & SIGN
 	            ? ~((~in1 & XWORD_MAX) >> (in2 & XWORD_BIT - 1))
 	            :     in1              >> (in2 & XWORD_BIT - 1);
 	        break;
-	case 6: mbz(reg && i->funct7); out = in1 | in2; break;
-	case 7: mbz(reg && i->funct7); out = in1 & in2; break;
+	case 6: mbz(reg && funct7(i)); out = in1 | in2; break;
+	case 7: mbz(reg && funct7(i)); out = in1 & in2; break;
 	}
-	if (i->rd) t->ireg[i->rd] = out & XWORD_MAX;
+	if (rd(i)) t->ireg[rd(i)] = out & XWORD_MAX;
 }
 
 #if XWORD_BIT > 32
-static void alwint(struct hart *t, const struct insn *i) {
-	unsigned reg = i->opcode & 0x20;
-	xword_t in1 = t->ireg[i->rs1],
-	        in2 = reg ? t->ireg[i->rs2] : i->iimm,
+static void alwint(struct hart *t, uint_least32_t i) {
+	unsigned reg = opcode(i) & 0x20;
+	xword_t in1 = t->ireg[rs1(i)],
+	        in2 = reg ? t->ireg[rs2(i)] : iimm(i),
 	        out;
-	switch (i->funct3) {
-	case 0: out = reg && i->funct7 ? in1 - in2 : in1 + in2; break;
-	case 1: mbz(i->funct7); out = in1 << (in2 & 31); break;
-	case 5: mbz(i->funct7 & ~0x20u);
-	        out = i->funct7 && in1 & XWORD_C(1) << 31
+	switch (funct3(i)) {
+	case 0: out = reg && funct7(i) ? in1 - in2 : in1 + in2; break;
+	case 1: mbz(funct7(i)); out = in1 << (in2 & 31); break;
+	case 5: mbz(funct7(i) & ~0x20u);
+	        out = funct7(i) && in1 & XWORD_C(1) << 31
 	            ? ~((~in1 & (XWORD_C(1) << 32) - 1) >> (in2 & 31))
 	            :    (in1 & (XWORD_C(1) << 32) - 1) >> (in2 & 31);
 	        break;
@@ -73,7 +55,7 @@ static void alwint(struct hart *t, const struct insn *i) {
 	}
 	out &= (XWORD_C(1) << 32) - 1;
 	out = (out ^ XWORD_C(1) << 31) - (XWORD_C(1) << 31);
-	if (i->rd) t->ireg[i->rd] = out & XWORD_MAX;
+	if (rd(i)) t->ireg[rd(i)] = out & XWORD_MAX;
 }
 #endif
 
@@ -89,12 +71,12 @@ static xword_t mulhu(xword_t x, xword_t y, xword_t neg) {
 	return r + (neg && (p + q << XWORD_BIT / 2) + s & XWORD_MAX);
 }
 
-static void alumul(struct hart *t, const struct insn *i) {
-	xword_t in1 = t->ireg[i->rs1],
-	        in2 = t->ireg[i->rs2],
+static void alumul(struct hart *t, uint_least32_t i) {
+	xword_t in1 = t->ireg[rs1(i)],
+	        in2 = t->ireg[rs2(i)],
 	        neg = 0,
 	        out;
-	switch (i->funct3) {
+	switch (funct3(i)) {
 	case 0: out = in1 * in2; break;
 	case 1: neg = (in1 ^ in2) & SIGN;
 	        in2 = in2 & SIGN ? -in2 & XWORD_MAX : in2;
@@ -111,16 +93,16 @@ static void alumul(struct hart *t, const struct insn *i) {
 	        in2 = in2 & SIGN ? -in2 & XWORD_MAX : in2;
 	case 7: out = in2 ? in1 % in2 : in1; break;
 	}
-	if (i->rd) t->ireg[i->rd] = (neg ? -out : out) & XWORD_MAX;
+	if (rd(i)) t->ireg[rd(i)] = (neg ? -out : out) & XWORD_MAX;
 }
 
 #if XWORD_BIT > 32
-static void alwmul(struct hart *t, const struct insn *i) {
-	xword_t in1 = t->ireg[i->rs1],
-	        in2 = t->ireg[i->rs2],
+static void alwmul(struct hart *t, uint_least32_t i) {
+	xword_t in1 = t->ireg[rs1(i)],
+	        in2 = t->ireg[rs2(i)],
 	        neg = 0,
 	        out;
-	switch (i->funct3) {
+	switch (funct3(i)) {
 	case 0: out = in1 * in2; break;
 	case 4: neg = (in1 ^ in2) & XWORD_C(1) << 31;
 	        in1 = in1 & XWORD_C(1) << 31 ? -in1 : in1;
@@ -138,12 +120,12 @@ static void alwmul(struct hart *t, const struct insn *i) {
 	}
 	out = (neg ? -out : out) & (XWORD_C(1) << 32) - 1;
 	out = (out ^ XWORD_C(1) << 31) - (XWORD_C(1) << 31);
-	if (i->rd) t->ireg[i->rd] = out & XWORD_MAX;
+	if (rd(i)) t->ireg[rd(i)] = out & XWORD_MAX;
 }
 #endif
 
-static void alu(struct hart *t, const struct insn *i) {
-	switch (i->funct7) {
+static void alu(struct hart *t, uint_least32_t i) {
+	switch (funct7(i)) {
 	case 0x00: case 0x20: aluint(t, i); break;
 	case 0x01: alumul(t, i); break;
 	default: abort(); /* FIXME */
@@ -151,8 +133,8 @@ static void alu(struct hart *t, const struct insn *i) {
 }
 
 #if XWORD_BIT > 32
-static void alw(struct hart *t, const struct insn *i) {
-	switch (i->funct7) {
+static void alw(struct hart *t, uint_least32_t i) {
+	switch (funct7(i)) {
 	case 0x00: case 0x20: alwint(t, i); break;
 	case 0x01: alwmul(t, i); break;
 	default: abort(); /* FIXME */
@@ -160,16 +142,16 @@ static void alw(struct hart *t, const struct insn *i) {
 }
 #endif
 
-static void lui(struct hart *t, const struct insn *i) {
-	xword_t out = i->opcode & 0x20 ? i->uimm : t->pc + i->uimm & XWORD_MAX;
-	if (i->rd) t->ireg[i->rd] = out;
+static void lui(struct hart *t, uint_least32_t i) {
+	xword_t out = opcode(i) & 0x20 ? uimm(i) : t->pc + uimm(i) & XWORD_MAX;
+	if (rd(i)) t->ireg[rd(i)] = out;
 }
 
-static void bcc(struct hart *t, const struct insn *i) {
-	xword_t in1 = t->ireg[i->rs1],
-	        in2 = t->ireg[i->rs2];
+static void bcc(struct hart *t, uint_least32_t i) {
+	xword_t in1 = t->ireg[rs1(i)],
+	        in2 = t->ireg[rs2(i)];
 	int flg;
-	switch (i->funct3) {
+	switch (funct3(i)) {
 	case 0: flg = in1 == in2; break;
 	case 1: flg = in1 != in2; break;
 	case 4: flg = (in1 ^ SIGN) <  (in2 ^ SIGN); break;
@@ -178,26 +160,26 @@ static void bcc(struct hart *t, const struct insn *i) {
 	case 7: flg = in1 >= in2; break;
 	default: abort(); /* FIXME */
 	}
-	if (flg) t->nextpc = t->pc + i->bimm & XWORD_MAX;
+	if (flg) t->nextpc = t->pc + bimm(i) & XWORD_MAX;
 }
 
-static void jal(struct hart *t, const struct insn *i) {
-	if (i->rd) t->ireg[i->rd] = t->pc + 4 & XWORD_MAX;
-	t->nextpc = t->pc + i->jimm & XWORD_MAX;
+static void jal(struct hart *t, uint_least32_t i) {
+	if (rd(i)) t->ireg[rd(i)] = t->pc + 4 & XWORD_MAX;
+	t->nextpc = t->pc + jimm(i) & XWORD_MAX;
 }
 
-static void jalr(struct hart *t, const struct insn *i) {
-	xword_t in = t->ireg[i->rs1];
-	if (i->rd) t->ireg[i->rd] = t->pc + 4 & XWORD_MAX;
-	t->nextpc = in + i->iimm & XWORD_MAX - 1;
+static void jalr(struct hart *t, uint_least32_t i) {
+	xword_t in = t->ireg[rs1(i)];
+	if (rd(i)) t->ireg[rd(i)] = t->pc + 4 & XWORD_MAX;
+	t->nextpc = in + iimm(i) & XWORD_MAX - 1;
 }
 
-static void ldr(struct hart *t, const struct insn *i) {
+static void ldr(struct hart *t, uint_least32_t i) {
 	unsigned char *restrict m;
-	xword_t a = t->ireg[i->rs1] + i->iimm & XWORD_MAX,
+	xword_t a = t->ireg[rs1(i)] + iimm(i) & XWORD_MAX,
 	        x = 0,
 	        s = 0;
-	switch (i->funct3) {
+	switch (funct3(i)) {
 	case 0: s = XWORD_C(1) <<  7;
 	case 4: m = map(t, a, 1); goto byte;
 	case 1: s = XWORD_C(1) << 15;
@@ -225,14 +207,14 @@ static void ldr(struct hart *t, const struct insn *i) {
 
 	default: abort(); /* FIXME */
 	}
-	if (i->rd) t->ireg[i->rd] = (x ^ s) - s & XWORD_MAX;
+	if (rd(i)) t->ireg[rd(i)] = (x ^ s) - s & XWORD_MAX;
 }
 
-static void str(struct hart *t, const struct insn *i) {
-	xword_t a = t->ireg[i->rs1] + i->simm & XWORD_MAX,
-	        x = t->ireg[i->rs2];
+static void str(struct hart *t, uint_least32_t i) {
+	xword_t a = t->ireg[rs1(i)] + simm(i) & XWORD_MAX,
+	        x = t->ireg[rs2(i)];
 	unsigned char *restrict m;
-	switch (i->funct3) {
+	switch (funct3(i)) {
 	case 0: m = map(t, a, 1); goto byte;
 	case 1: m = map(t, a, 2); goto half;
 	case 2: m = map(t, a, 4); goto word;
@@ -254,41 +236,41 @@ static void str(struct hart *t, const struct insn *i) {
 	}
 }
 
-static void mem(struct hart *t, const struct insn *i) {
-	switch (i->funct3) {
+static void mem(struct hart *t, uint_least32_t i) {
+	switch (funct3(i)) {
 	case 0: /* FENCE */ break;
 	case 1: /* FENCE.I */ break;
 	default: abort(); /* FIXME */
 	}
 }
 
-static void super(struct hart *t, const struct insn *i) {
-	switch (i->iimm) {
-	case 0x000: if (!i->rs1 && !i->rd) { ecall(t); break; }
-	case 0x302: if (!i->rs1 && !i->rd) { /* FIXME mret */ break; }
+static void super(struct hart *t, uint_least32_t i) {
+	switch (iimm(i)) {
+	case 0x000: if (!rs1(i) && !rd(i)) { ecall(t); break; }
+	case 0x302: if (!rs1(i) && !rd(i)) { /* FIXME mret */ break; }
 	default: abort(); /* FIXME */
 	}
 }
 
-static void hyper(struct hart *t, const struct insn *i) {
+static void hyper(struct hart *t, uint_least32_t i) {
 	abort(); /* FIXME */
 }
 
-static void sys(struct hart *t, const struct insn *i) {
-	xword_t in1 = i->funct3 & 4 ? i->rs1 : t->ireg[i->rs1],
-	        nul = 0, *out = i->rd ? &t->ireg[i->rd] : &nul;
-	unsigned csr = i->iimm & 0xFFF;
-	switch (i->funct3) {
+static void sys(struct hart *t, uint_least32_t i) {
+	xword_t in1 = funct3(i) & 4 ? rs1(i) : t->ireg[rs1(i)],
+	        nul = 0, *out = rd(i) ? &t->ireg[rd(i)] : &nul;
+	unsigned csr = iimm(i) & 0xFFF;
+	switch (funct3(i)) {
 	case 0: super(t, i); break;
 	case 4: hyper(t, i); break;
 	case 1: case 5: csrxchg(t, out, csr, in1); break;
-	case 2: case 6: if (i->rs1) csrxset(t, out, csr, in1); else csrread(t, out, csr); break;
-	case 3: case 7: if (i->rs1) csrxclr(t, out, csr, in1); else csrread(t, out, csr); break;
+	case 2: case 6: if (rs1(i)) csrxset(t, out, csr, in1); else csrread(t, out, csr); break;
+	case 3: case 7: if (rs1(i)) csrxclr(t, out, csr, in1); else csrread(t, out, csr); break;
 	}
 }
 
-void execute(struct hart *t, const struct insn *i) {
-	switch (i->opcode) {
+void execute(struct hart *t, uint_least32_t i) {
+	switch (opcode(i)) {
 	case 0x03: ldr(t, i); break;
 	case 0x0F: mem(t, i); break;
 	case 0x13: aluint(t, i); break;

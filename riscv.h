@@ -24,18 +24,11 @@ typedef uint_least64_t xword_t;
 
 #define XWORD_MAX ((XWORD_C(1) << XWORD_BIT - 1 << 1) - 1)
 
-struct insn {
-	unsigned opcode : 7, funct3 : 3, funct7 : 7, rs1 : 5, rs2 : 5, rd : 5;
-	xword_t iimm, simm, bimm, uimm, jimm;
-};
-
-struct insn decode(uint_least32_t);
-
 struct hart {
 	xword_t ireg[32], pc, nextpc;
 };
 
-void execute(struct hart *, const struct insn *);
+void execute(struct hart *, uint_least32_t);
 
 unsigned char *map(struct hart *t, xword_t a, xword_t n);
 /* FIXME unmap? */

@@ -11,6 +11,7 @@ repl: repl.o riscv.o
 rvui: rvui.o riscv.o
 rvui.o: elf.h
 repl.o riscv.o rvui.o: riscv.h
+repl.o riscv.o: rvinsn.h
 check: check.mk rvui
 	+$(MAKE) $(MFLAGS) -f check.mk $@
 check.mk: check.sh $(TESTS)

@@ -224,14 +224,13 @@ int main(int argc, char **argv) {
 	for (;;) {
 		xword_t pc = c.hart.pc;
 		unsigned char *ip = map(&c.hart, pc, 4);
-		uint_least32_t x = ip[0]       |
+		uint_least32_t i = ip[0]       |
 		   (uint_least16_t)ip[1] <<  8 |
 		   (uint_least32_t)ip[2] << 16 |
 		   (uint_least32_t)ip[3] << 24;
 		c.hart.nextpc = pc + 4 & XWORD_MAX;
 
-		struct insn i = decode(x);
-		execute(&c.hart, &i);
+		execute(&c.hart, i);
 		if (c.hart.nextpc & 3) abort(); /* FIXME imprecise */
 		c.hart.pc = c.hart.nextpc;
 	}
