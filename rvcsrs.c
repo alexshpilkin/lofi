@@ -8,12 +8,12 @@ static void super(struct hart *t, uint_least32_t i) {
 	switch (iimm(i)) {
 	case 0x000: if (!rs1(i) && !rd(i)) { ecall(t); break; }
 	case 0x302: if (!rs1(i) && !rd(i)) { /* FIXME mret */ break; }
-	default: illins(t, i);
+	default: trap(t, ILLINS, i);
 	}
 }
 
 static void hyper(struct hart *t, uint_least32_t i) {
-	illins(t, i);
+	trap(t, ILLINS, i);
 }
 
 __attribute__((alias("sys"))) execute_t exec1C;

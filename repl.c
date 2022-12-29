@@ -11,14 +11,22 @@ struct cpu {
 	size_t size;
 };
 
-unsigned char *map(struct hart *t, xword_t addr, xword_t size) {
+unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
 	struct cpu *c = (struct cpu *)t;
-	if (addr & size - 1) abort(); /* FIXME */
-	if (addr >= c->size || size > c->size - addr) abort(); /* FIXME */
+	if (addr & size - 1) switch (type) {
+	case MAPR: trap(t, RALIGN, addr); return 0;
+	case MAPW: trap(t, WALIGN, addr); return 0;
+	case MAPX: break; /* handled by higher-level code */
+	}
+	if (addr >= c->size || size > c->size - addr) switch (type) {
+	case MAPR: trap(t, RACCES, addr); return 0;
+	case MAPW: trap(t, WACCES, addr); return 0;
+	case MAPX: trap(t, XACCES, addr); return 0;
+	}
 	return &c->image[addr];
 }
 
-void illins(struct hart *t, uint_least32_t i) {
+void trap(struct hart *t, xword_t cause, xword_t value) {
 	abort(); /* FIXME */
 }
 

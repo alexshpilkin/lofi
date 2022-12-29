@@ -6,7 +6,11 @@
 
 #define SIGN (XWORD_C(1) << XWORD_BIT - 1)
 
-#define MBZ(X) do if (X) { illins(t, i); return; } while (0)
+static void illins(struct hart *t, uint_least32_t i) {
+	trap(t, ILLINS, i);
+}
+
+#define MBZ(X) do if (X) { trap(t, ILLINS, i); return; } while (0)
 
 /* FIXME alu/alw duplication */
 
@@ -53,7 +57,7 @@ static void walu(struct hart *t, uint_least32_t i) {
 	            ? ~((~in1 & (XWORD_C(1) << 32) - 1) >> (in2 & 31))
 	            :    (in1 & (XWORD_C(1) << 32) - 1) >> (in2 & 31);
 	        break;
-	default: illins(t, i); return;
+	default: trap(t, ILLINS, i); return;
 	}
 	out &= (XWORD_C(1) << 32) - 1;
 	out = (out ^ XWORD_C(1) << 31) - (XWORD_C(1) << 31);
@@ -63,31 +67,29 @@ static void walu(struct hart *t, uint_least32_t i) {
 
 __attribute__((alias("xop"))) execute_t exec0C;
 
-#define xops00 IGNORE /* defined here */
-#define xops20 IGNORE /* defined here */
-__attribute__((weak)) execute_t FUNCT7(xops);
+#define xops00 xops00_ /* defined here */
+#define xops20 xops20_ /* defined here */
+__attribute__((alias("illins"), weak)) execute_t FUNCT7(xops);
 #undef xops00
 #undef xops20
 
 static void xop(struct hart *t, uint_least32_t i) {
 	static execute_t *const xops[0x80] = { FUNCT7(&xops) };
-	execute_t *impl = xops[funct7(i)];
-	(*(impl ? impl : &illins))(t, i);
+	(*xops[funct7(i)])(t, i);
 }
 
 #if XWORD_BIT > 32
 __attribute__((alias("wop"))) execute_t exec0E;
 
-#define wops00 IGNORE /* defined here */
-#define wops20 IGNORE /* defined here */
-__attribute__((weak)) execute_t FUNCT7(wops);
+#define wops00 wops00_ /* defined here */
+#define wops20 wops20_ /* defined here */
+__attribute__((alias("illins"), weak)) execute_t FUNCT7(wops);
 #undef wops00
 #undef wops20
 
 static void wop(struct hart *t, uint_least32_t i) {
 	static execute_t *const wops[0x80] = { FUNCT7(&wops) };
-	execute_t *impl = wops[funct7(i)];
-	(*(impl ? impl : &illins))(t, i);
+	(*wops[funct7(i)])(t, i);
 }
 #endif
 
@@ -111,7 +113,7 @@ static void bcc(struct hart *t, uint_least32_t i) {
 	case 5: flg = (in1 ^ SIGN) >= (in2 ^ SIGN); break;
 	case 6: flg = in1 <  in2; break;
 	case 7: flg = in1 >= in2; break;
-	default: illins(t, i); return;
+	default: trap(t, ILLINS, i); return;
 	}
 	if (flg) t->nextpc = t->pc + bimm(i) & XWORD_MAX;
 }
@@ -140,18 +142,18 @@ static void ldr(struct hart *t, uint_least32_t i) {
 	        s = 0;
 	switch (funct3(i)) {
 	case 0: s = XWORD_C(1) <<  7;
-	case 4: m = map(t, a, 1); goto byte;
+	case 4: if (!(m = map(t, a, 1, MAPR))) return; goto byte;
 	case 1: s = XWORD_C(1) << 15;
-	case 5: m = map(t, a, 2); goto half;
+	case 5: if (!(m = map(t, a, 2, MAPR))) return; goto half;
 	case 2:
 #if XWORD_BIT > 32
 	        s = XWORD_C(1) << 31;
 	case 6:
 #endif
-	        m = map(t, a, 4); goto word;
+	/*****/ if (!(m = map(t, a, 4, MAPR))) return; goto word;
 #if XWORD_BIT >= 64
 	case 3: s = XWORD_C(1) << 63;
-	        m = map(t, a, 8); goto doub;
+	/*****/ if (!(m = map(t, a, 8, MAPR))) return; goto doub;
 
 	doub: x |= (xword_t)m[7] << 56;
 	      x |= (xword_t)m[6] << 48;
@@ -164,7 +166,7 @@ static void ldr(struct hart *t, uint_least32_t i) {
 	byte: x |= (xword_t)m[0];
 	      break;
 
-	default: illins(t, i); return;
+	default: trap(t, ILLINS, i); return;
 	}
 	if (rd(i)) t->ireg[rd(i)] = (x ^ s) - s & XWORD_MAX;
 }
@@ -176,11 +178,11 @@ static void str(struct hart *t, uint_least32_t i) {
 	        x = t->ireg[rs2(i)];
 	unsigned char *restrict m;
 	switch (funct3(i)) {
-	case 0: m = map(t, a, 1); goto byte;
-	case 1: m = map(t, a, 2); goto half;
-	case 2: m = map(t, a, 4); goto word;
+	case 0: if (!(m = map(t, a, 1, MAPW))) return; goto byte;
+	case 1: if (!(m = map(t, a, 2, MAPW))) return; goto half;
+	case 2: if (!(m = map(t, a, 4, MAPW))) return; goto word;
 #if XWORD_BIT >= 64
-	case 3: m = map(t, a, 8); goto doub;
+	case 3: if (!(m = map(t, a, 8, MAPW))) return; goto doub;
 
 	doub: m[7] = x >> 56 & 0xFF;
 	      m[6] = x >> 48 & 0xFF;
@@ -193,7 +195,7 @@ static void str(struct hart *t, uint_least32_t i) {
 	byte: m[0] = x       & 0xFF;
 	      break;
 
-	default: illins(t, i); return;
+	default: trap(t, ILLINS, i); return;
 	}
 }
 
@@ -205,14 +207,13 @@ static void fence(struct hart *t, uint_least32_t i) {
 
 __attribute__((alias("mem"))) execute_t exec03;
 
-#define memo0 IGNORE /* defined here */
-#define memo1 IGNORE /* defined here */
-__attribute__((weak)) execute_t FUNCT3(memo);
+#define memo0 memo0_ /* defined here */
+#define memo1 memo1_ /* defined here */
+__attribute__((alias("illins"), weak)) execute_t FUNCT3(memo);
 #undef memo0
 #undef memo1
 
 static void mem(struct hart *t, uint_least32_t i) {
 	static execute_t *const memo[8] = { FUNCT3(memo) };
-	execute_t *impl = memo[funct3(i)];
-	(*(impl ? impl : &illins))(t, i);
+	(*memo[funct3(i)])(t, i);
 }

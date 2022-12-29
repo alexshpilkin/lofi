@@ -56,23 +56,33 @@ struct cpu {
 };
 
 /* FIXME should use when loading */
-unsigned char *map(struct hart *t, xword_t addr, xword_t size) {
+unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
 	struct cpu *c = (struct cpu *)t;
-	if (addr & size - 1) abort(); /* FIXME */
+	if (addr & size - 1) switch (type) {
+	case MAPR: trap(t, RALIGN, addr); return 0;
+	case MAPW: trap(t, WALIGN, addr); return 0;
+	case MAPX: break; /* handled by higher-level code */
+	}
 	addr -= c->base; /* wraps around on overflow */
-	if (addr >= c->size || size > c->size - addr) abort(); /* FIXME */
+	if (addr >= c->size || size > c->size - addr) switch (type) {
+	case MAPR: trap(t, RACCES, addr + c->base); return 0;
+	case MAPW: trap(t, WACCES, addr + c->base); return 0;
+	case MAPX: trap(t, XACCES, addr + c->base); return 0;
+	}
 	return &c->image[addr];
 }
 
-void illins(struct hart *t, uint_least32_t i) {
+void trap(struct hart *t, xword_t cause, xword_t value) {
 	abort(); /* FIXME */
 }
 
 void ecall(struct hart *t) {
 	struct cpu *c = (struct cpu *)t;
 	if (c->hart.ireg[17 /* a7 */] == 93 /* __NR_exit */) {
-		for (xword_t a = c->sigbeg; a < c->sigend; a++)
-			printf("%.2x\n", *map(&c->hart, a, 1));
+		for (xword_t a = c->sigbeg; a < c->sigend; a++) {
+			unsigned char *m = map(&c->hart, a, 1, MAPR);
+			if (m) printf("%.2x\n", *m); else abort(); /* FIXME */
+		}
 		exit(c->hart.ireg[10]);
 	}
 	abort();
@@ -227,15 +237,18 @@ int main(int argc, char **argv) {
 
 	for (;;) {
 		xword_t pc = c.hart.pc;
-		unsigned char *ip = map(&c.hart, pc, 4);
-		uint_least32_t i = ip[0]       |
-		   (uint_least16_t)ip[1] <<  8 |
-		   (uint_least32_t)ip[2] << 16 |
-		   (uint_least32_t)ip[3] << 24;
-		c.hart.nextpc = pc + 4 & XWORD_MAX;
+		unsigned char *ip = map(&c.hart, pc, 4, MAPX);
+		if (ip) {
+			uint_least32_t i = ip[0]       |
+			   (uint_least16_t)ip[1] <<  8 |
+			   (uint_least32_t)ip[2] << 16 |
+			   (uint_least32_t)ip[3] << 24;
+			c.hart.nextpc = pc + 4 & XWORD_MAX;
 
-		execute(&c.hart, i);
-		if (c.hart.nextpc & 3) abort(); /* FIXME imprecise */
+			execute(&c.hart, i);
+			if (c.hart.nextpc & 3)
+				trap(&c.hart, XALIGN, c.hart.nextpc); /* FIXME imprecise */
+		}
 		c.hart.pc = c.hart.nextpc;
 	}
 

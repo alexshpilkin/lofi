@@ -30,10 +30,15 @@ struct hart {
 
 void execute(struct hart *, uint_least32_t);
 
-unsigned char *map(struct hart *t, xword_t a, xword_t n);
+enum { MAPR, MAPW, MAPX };
+unsigned char *map(struct hart *, xword_t, xword_t, int);
 /* FIXME unmap? */
 
-void illins(struct hart *, uint_least32_t);
+enum {
+	XALIGN, XACCES, ILLINS, EBREAK, RALIGN, RACCES, WALIGN, WACCES,
+	UECALL, SECALL,   MECALL = 0xB, XPAGED, RPAGED,   WPAGED = 0xF,
+};
+void trap(struct hart *, xword_t, xword_t);
 
 void ecall(struct hart *);
 
