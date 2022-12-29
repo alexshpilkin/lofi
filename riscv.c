@@ -4,6 +4,8 @@
 #include "riscv.h"
 #include "rvinsn.h"
 
+typedef void execute_t(struct hart *, uint_least32_t);
+
 #define SIGN (XWORD_C(1) << XWORD_BIT - 1)
 
 static void mbz(unsigned x) {
@@ -11,6 +13,8 @@ static void mbz(unsigned x) {
 }
 
 /* FIXME alu/alw duplication */
+
+__attribute__((alias("aluint"))) execute_t exec04;
 
 static void aluint(struct hart *t, uint_least32_t i) {
 	enum { MASK7 = XWORD_BIT / 32 - 1 }; /* shamt bleeds into funct7 */
@@ -38,6 +42,8 @@ static void aluint(struct hart *t, uint_least32_t i) {
 }
 
 #if XWORD_BIT > 32
+__attribute__((alias("alwint"))) execute_t exec06;
+
 static void alwint(struct hart *t, uint_least32_t i) {
 	unsigned reg = opcode(i) & 0x20;
 	xword_t in1 = t->ireg[rs1(i)],
@@ -124,6 +130,8 @@ static void alwmul(struct hart *t, uint_least32_t i) {
 }
 #endif
 
+__attribute__((alias("alu"))) execute_t exec0C;
+
 static void alu(struct hart *t, uint_least32_t i) {
 	switch (funct7(i)) {
 	case 0x00: case 0x20: aluint(t, i); break;
@@ -133,6 +141,8 @@ static void alu(struct hart *t, uint_least32_t i) {
 }
 
 #if XWORD_BIT > 32
+__attribute__((alias("alw"))) execute_t exec0E;
+
 static void alw(struct hart *t, uint_least32_t i) {
 	switch (funct7(i)) {
 	case 0x00: case 0x20: alwint(t, i); break;
@@ -142,10 +152,14 @@ static void alw(struct hart *t, uint_least32_t i) {
 }
 #endif
 
+__attribute__((alias("lui"))) execute_t exec05, exec0D;
+
 static void lui(struct hart *t, uint_least32_t i) {
 	xword_t out = opcode(i) & 0x20 ? uimm(i) : t->pc + uimm(i) & XWORD_MAX;
 	if (rd(i)) t->ireg[rd(i)] = out;
 }
+
+__attribute__((alias("bcc"))) execute_t exec18;
 
 static void bcc(struct hart *t, uint_least32_t i) {
 	xword_t in1 = t->ireg[rs1(i)],
@@ -163,16 +177,22 @@ static void bcc(struct hart *t, uint_least32_t i) {
 	if (flg) t->nextpc = t->pc + bimm(i) & XWORD_MAX;
 }
 
+__attribute__((alias("jal"))) execute_t exec1B;
+
 static void jal(struct hart *t, uint_least32_t i) {
 	if (rd(i)) t->ireg[rd(i)] = t->pc + 4 & XWORD_MAX;
 	t->nextpc = t->pc + jimm(i) & XWORD_MAX;
 }
+
+__attribute__((alias("jalr"))) execute_t exec19;
 
 static void jalr(struct hart *t, uint_least32_t i) {
 	xword_t in = t->ireg[rs1(i)];
 	if (rd(i)) t->ireg[rd(i)] = t->pc + 4 & XWORD_MAX;
 	t->nextpc = in + iimm(i) & XWORD_MAX - 1;
 }
+
+__attribute__((alias("ldr"))) execute_t exec00;
 
 static void ldr(struct hart *t, uint_least32_t i) {
 	unsigned char *restrict m;
@@ -210,6 +230,8 @@ static void ldr(struct hart *t, uint_least32_t i) {
 	if (rd(i)) t->ireg[rd(i)] = (x ^ s) - s & XWORD_MAX;
 }
 
+__attribute__((alias("str"))) execute_t exec08;
+
 static void str(struct hart *t, uint_least32_t i) {
 	xword_t a = t->ireg[rs1(i)] + simm(i) & XWORD_MAX,
 	        x = t->ireg[rs2(i)];
@@ -236,6 +258,8 @@ static void str(struct hart *t, uint_least32_t i) {
 	}
 }
 
+__attribute__((alias("mem"))) execute_t exec03;
+
 static void mem(struct hart *t, uint_least32_t i) {
 	switch (funct3(i)) {
 	case 0: /* FENCE */ break;
@@ -256,6 +280,8 @@ static void hyper(struct hart *t, uint_least32_t i) {
 	abort(); /* FIXME */
 }
 
+__attribute__((alias("sys"))) execute_t exec1C;
+
 static void sys(struct hart *t, uint_least32_t i) {
 	xword_t in1 = funct3(i) & 4 ? rs1(i) : t->ireg[rs1(i)],
 	        nul = 0, *out = rd(i) ? &t->ireg[rd(i)] : &nul;
@@ -269,27 +295,16 @@ static void sys(struct hart *t, uint_least32_t i) {
 	}
 }
 
-void execute(struct hart *t, uint_least32_t i) {
-	if (i & 3 != 3) abort(); /* FIXME */
+#define OPCODE(T) \
+	T##00, T##01, T##02, T##03, T##04, T##05, T##06, T##07, \
+	T##08, T##09, T##0A, T##0B, T##0C, T##0D, T##0E, T##0F, \
+	T##10, T##11, T##12, T##13, T##14, T##15, T##16, T##17, \
+	T##18, T##19, T##1A, T##1B, T##1C, T##1D, T##1E, T##1F
 
-	switch (opcode(i) >> 2) {
-	case 0x00: ldr(t, i); break;
-	case 0x03: mem(t, i); break;
-	case 0x04: aluint(t, i); break;
-	case 0x05: lui(t, i); break;
-#if XWORD_BIT > 32
-	case 0x06: alwint(t, i); break;
-#endif
-	case 0x08: str(t, i); break;
-	case 0x0C: alu(t, i); break;
-	case 0x0D: lui(t, i); break;
-#if XWORD_BIT > 32
-	case 0x0E: alw(t, i); break;
-#endif
-	case 0x18: bcc(t, i); break;
-	case 0x19: jalr(t, i); break;
-	case 0x1B: jal(t, i); break;
-	case 0x1C: sys(t, i); break;
-	default: abort(); /* FIXME */
-	}
+__attribute__((weak)) execute_t OPCODE(exec);
+
+void execute(struct hart *t, uint_least32_t i) {
+	static execute_t *const exec[0x20] = { OPCODE(&exec) };
+	execute_t *impl = i & 3 != 3 ? 0 /* FIXME */ : exec[opcode(i) >> 2];
+	if (impl) (*impl)(t, i); else abort(); /* FIXME */
 }
