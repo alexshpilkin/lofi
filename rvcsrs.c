@@ -7,7 +7,9 @@
 static void super(struct hart *t, uint_least32_t i) {
 	switch (iimm(i)) {
 	case 0x000: if (!rs1(i) && !rd(i)) { ecall(t); break; }
-	case 0x302: if (!rs1(i) && !rd(i)) { /* FIXME mret */ break; }
+	case 0x001: if (!rs1(i) && !rd(i)) { trap(t, EBREAK, 0); break; }
+	case 0x105: if (!rs1(i) && !rd(i)) { /* FIXME WFI */ break; }
+	case 0x302: if (!rs1(i) && !rd(i)) { mret(t); break; }
 	default: trap(t, ILLINS, i);
 	}
 }

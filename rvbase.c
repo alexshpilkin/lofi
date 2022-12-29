@@ -4,6 +4,10 @@
 #include "rvexec.h"
 #include "rvinsn.h"
 
+#ifdef DEFINE_EXTENSION
+DEFINE_EXTENSION(I)
+#endif
+
 #define SIGN (XWORD_C(1) << XWORD_BIT - 1)
 
 static void illins(struct hart *t, uint_least32_t i) {

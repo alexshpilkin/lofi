@@ -49,7 +49,7 @@ static size_t elfz(size_t off) {
 }
 
 struct cpu {
-	struct hart hart;
+	struct mhart mhart;
 	unsigned char *image;
 	xword_t base, size; /* FIXME must have 0 < base || base + size < -1 */
 	xword_t sigbeg, sigend;
@@ -72,33 +72,20 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
 	return &c->image[addr];
 }
 
-void trap(struct hart *t, xword_t cause, xword_t value) {
-	abort(); /* FIXME */
-}
-
 void ecall(struct hart *t) {
 	struct cpu *c = (struct cpu *)t;
-	if (c->hart.ireg[17 /* a7 */] == 93 /* __NR_exit */) {
+	if (c->mhart.hart.ireg[17 /* a7 */] == 93 /* __NR_exit */) {
 		for (xword_t a = c->sigbeg; a < c->sigend; a++) {
-			unsigned char *m = map(&c->hart, a, 1, MAPR);
+			unsigned char *m = map(&c->mhart.hart, a, 1, MAPR);
 			if (m) printf("%.2x\n", *m); else abort(); /* FIXME */
 		}
-		exit(c->hart.ireg[10]);
+		exit(c->mhart.hart.ireg[10]);
 	}
 	abort();
 }
 
-void csrread(struct hart *t, xword_t *out, unsigned csr) {
-	*out = 0; /* FIXME */
-}
-void csrxchg(struct hart *t, xword_t *out, unsigned csr, xword_t val) {
-	*out = 0; /* FIXME */
-}
-void csrxset(struct hart *t, xword_t *out, unsigned csr, xword_t val) {
-	*out = 0; /* FIXME */
-}
-void csrxclr(struct hart *t, xword_t *out, unsigned csr, xword_t val) {
-	*out = 0; /* FIXME */
+xword_t xalign(struct hart *t, xword_t pc) {
+	(void)t; return pc & ~XWORD_C(3);
 }
 
 int main(int argc, char **argv) {
@@ -159,7 +146,7 @@ int main(int argc, char **argv) {
 	if (ehsize < OFFSET + 12) goto bad;
 
 	struct cpu c = {0};
-	c.hart.pc = entry;
+	c.mhart.hart.pc = entry;
 
 	err = "bad ELF segment table";
 	if (phnum > SIZE_MAX / phentsize || phoff + phnum*phentsize < phoff)
@@ -236,20 +223,20 @@ int main(int argc, char **argv) {
 	}
 
 	for (;;) {
-		xword_t pc = c.hart.pc;
-		unsigned char *ip = map(&c.hart, pc, 4, MAPX);
+		xword_t pc = c.mhart.hart.pc;
+		unsigned char *ip = map(&c.mhart.hart, pc, 4, MAPX);
 		if (ip) {
 			uint_least32_t i = ip[0]       |
 			   (uint_least16_t)ip[1] <<  8 |
 			   (uint_least32_t)ip[2] << 16 |
 			   (uint_least32_t)ip[3] << 24;
-			c.hart.nextpc = pc + 4 & XWORD_MAX;
+			c.mhart.hart.nextpc = pc + 4 & XWORD_MAX;
 
-			execute(&c.hart, i);
-			if (c.hart.nextpc & 3)
-				trap(&c.hart, XALIGN, c.hart.nextpc); /* FIXME imprecise */
+			execute(&c.mhart.hart, i);
+			if (c.mhart.hart.nextpc & 3)
+				trap(&c.mhart.hart, XALIGN, c.mhart.hart.nextpc); /* FIXME imprecise */
 		}
-		c.hart.pc = c.hart.nextpc;
+		c.mhart.hart.pc = c.mhart.hart.nextpc;
 	}
 
 	/* unreachable */

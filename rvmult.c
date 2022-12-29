@@ -4,6 +4,10 @@
 #include "rvexec.h"
 #include "rvinsn.h"
 
+#ifdef DEFINE_EXTENSION
+DEFINE_EXTENSION(M)
+#endif
+
 #define SIGN (XWORD_C(1) << XWORD_BIT - 1)
 
 static xword_t mulhu(xword_t x, xword_t y, xword_t neg) {

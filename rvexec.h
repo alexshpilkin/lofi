@@ -34,3 +34,11 @@ execute_t FUNCT3(memo);
 	T##78, T##79, T##7A, T##7B, T##7C, T##7D, T##7E, T##7F
 
 execute_t FUNCT7(xops), FUNCT7(wops);
+
+#ifdef __GNUC__
+#define DEFINE_EXTENSION(C) \
+	__asm__ ( ".pushsection .comment.misa, \"\", @nobits\n\t" \
+	          ".skip 1 << ('" #C "' - 'A')\n\t" \
+	          ".popsection" \
+	        );
+#endif

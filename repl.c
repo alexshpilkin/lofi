@@ -34,6 +34,10 @@ void ecall(struct hart *t) {
 	abort(); /* FIXME */
 }
 
+void mret(struct hart *t) {
+	abort(); /* FIXME */
+}
+
 void csrread(struct hart *t, xword_t *out, unsigned csr) {
 	abort(); /* FIXME */
 }

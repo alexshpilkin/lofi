@@ -8,9 +8,9 @@ XLEN   = 32
 
 all: repl rvui
 repl: repl.o rvbase.o rvcsrs.o rvexec.o rvmult.o
-rvui: rvui.o rvbase.o rvcsrs.o rvexec.o rvmult.o
+rvui: rvui.o rvbase.o rvcsrs.o rvexec.o rvmach.o rvmisa.ld rvmult.o
 rvui.o: elf.h
-repl.o rvbase.o rvcsrs.o rvexec.o rvmult.o rvui.o: riscv.h
+repl.o rvbase.o rvcsrs.o rvexec.o rvmach.o rvmult.o rvui.o: riscv.h
 rvbase.o rvcsrs.o rvexec.o rvmult.o: rvexec.h
 repl.o rvbase.o rvcsrs.o rvexec.o rvmult.o: rvinsn.h
 check: check.mk rvui
@@ -18,7 +18,7 @@ check: check.mk rvui
 check.mk: check.sh $(TESTS)
 	+$(SHELL) ./check.sh $(TESTS) $(XLEN) > $@
 clean: clean-check
-	rm -f repl rvui repl.o rvbase.o rvcsrs.o rvexec.o rvmult.o rvui.o check.mk
+	rm -f repl rvui repl.o rvbase.o rvcsrs.o rvexec.o rvmach.o rvmult.o rvui.o check.mk
 clean-check: check.mk
 	+$(MAKE) $(MFLAGS) -f check.mk clean
 install:
