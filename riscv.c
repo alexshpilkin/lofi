@@ -270,24 +270,26 @@ static void sys(struct hart *t, uint_least32_t i) {
 }
 
 void execute(struct hart *t, uint_least32_t i) {
-	switch (opcode(i)) {
-	case 0x03: ldr(t, i); break;
-	case 0x0F: mem(t, i); break;
-	case 0x13: aluint(t, i); break;
-	case 0x17: lui(t, i); break;
+	if (i & 3 != 3) abort(); /* FIXME */
+
+	switch (opcode(i) >> 2) {
+	case 0x00: ldr(t, i); break;
+	case 0x03: mem(t, i); break;
+	case 0x04: aluint(t, i); break;
+	case 0x05: lui(t, i); break;
 #if XWORD_BIT > 32
-	case 0x1B: alwint(t, i); break;
+	case 0x06: alwint(t, i); break;
 #endif
-	case 0x23: str(t, i); break;
-	case 0x33: alu(t, i); break;
-	case 0x37: lui(t, i); break;
+	case 0x08: str(t, i); break;
+	case 0x0C: alu(t, i); break;
+	case 0x0D: lui(t, i); break;
 #if XWORD_BIT > 32
-	case 0x3B: alw(t, i); break;
+	case 0x0E: alw(t, i); break;
 #endif
-	case 0x63: bcc(t, i); break;
-	case 0x67: jalr(t, i); break;
-	case 0x6F: jal(t, i); break;
-	case 0x73: sys(t, i); break;
+	case 0x18: bcc(t, i); break;
+	case 0x19: jalr(t, i); break;
+	case 0x1B: jal(t, i); break;
+	case 0x1C: sys(t, i); break;
 	default: abort(); /* FIXME */
 	}
 }
