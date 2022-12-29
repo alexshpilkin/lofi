@@ -7,17 +7,18 @@ TESTS  = riscv-tests
 XLEN   = 32
 
 all: repl rvui
-repl: repl.o riscv.o
-rvui: rvui.o riscv.o
+repl: repl.o rvbase.o rvexec.o rvmult.o
+rvui: rvui.o rvbase.o rvexec.o rvmult.o
 rvui.o: elf.h
-repl.o riscv.o rvui.o: riscv.h
-repl.o riscv.o: rvinsn.h
+repl.o rvbase.o rvexec.o rvmult.o rvui.o: riscv.h
+rvbase.o rvexec.o rvmult.o: rvexec.h
+repl.o rvbase.o rvexec.o rvmult.o: rvinsn.h
 check: check.mk rvui
 	+$(MAKE) $(MFLAGS) -f check.mk $@
 check.mk: check.sh $(TESTS)
 	+$(SHELL) ./check.sh $(TESTS) $(XLEN) > $@
 clean: clean-check
-	rm -f repl rvui repl.o riscv.o rvui.o check.mk
+	rm -f repl rvui repl.o rvbase.o rvexec.o rvmult.o rvui.o check.mk
 clean-check: check.mk
 	+$(MAKE) $(MFLAGS) -f check.mk clean
 install:
