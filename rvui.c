@@ -64,6 +64,10 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size) {
 	return &c->image[addr];
 }
 
+void illins(struct hart *t, uint_least32_t i) {
+	abort(); /* FIXME */
+}
+
 void ecall(struct hart *t) {
 	struct cpu *c = (struct cpu *)t;
 	if (c->hart.ireg[17 /* a7 */] == 93 /* __NR_exit */) {

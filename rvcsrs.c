@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include <stdlib.h> /* FIXME */
 
 #include "riscv.h"
 #include "rvexec.h"
@@ -9,12 +8,12 @@ static void super(struct hart *t, uint_least32_t i) {
 	switch (iimm(i)) {
 	case 0x000: if (!rs1(i) && !rd(i)) { ecall(t); break; }
 	case 0x302: if (!rs1(i) && !rd(i)) { /* FIXME mret */ break; }
-	default: abort(); /* FIXME */
+	default: illins(t, i);
 	}
 }
 
 static void hyper(struct hart *t, uint_least32_t i) {
-	abort(); /* FIXME */
+	illins(t, i);
 }
 
 __attribute__((alias("sys"))) execute_t exec1C;

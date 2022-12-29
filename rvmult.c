@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include <stdlib.h> /* FIXME */
 
 #include "riscv.h"
 #include "rvexec.h"
@@ -68,7 +67,7 @@ static void wmul(struct hart *t, uint_least32_t i) {
 	case 7: in1 &= (XWORD_C(1) << 32) - 1;
 	        in2 &= (XWORD_C(1) << 32) - 1;
 	        out = in2 ? in1 % in2 : in1; break;
-	default: abort(); /* FIXME */
+	default: illins(t, i); return;
 	}
 	out = (neg ? -out : out) & (XWORD_C(1) << 32) - 1;
 	out = (out ^ XWORD_C(1) << 31) - (XWORD_C(1) << 31);

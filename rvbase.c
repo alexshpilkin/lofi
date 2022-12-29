@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include <stdlib.h> /* FIXME */
 
 #include "riscv.h"
 #include "rvexec.h"
@@ -7,9 +6,7 @@
 
 #define SIGN (XWORD_C(1) << XWORD_BIT - 1)
 
-static void mbz(unsigned x) {
-	if (x) abort(); /* FIXME */
-}
+#define MBZ(X) do if (X) { illins(t, i); return; } while (0)
 
 /* FIXME alu/alw duplication */
 
@@ -23,19 +20,19 @@ static void xalu(struct hart *t, uint_least32_t i) {
 	        out;
 	switch (funct3(i)) {
 	case 0: out = reg && funct7(i) ? in1 - in2 : in1 + in2; break;
-	case 1: mbz(funct7(i) & ~(unsigned)MASK7);
+	case 1: MBZ(funct7(i) & ~(unsigned)MASK7);
 	        out = in1 << (in2 & XWORD_BIT - 1);
 	        break;
-	case 2: mbz(reg && funct7(i)); out = (in1 ^ SIGN) < (in2 ^ SIGN); break;
-	case 3: mbz(reg && funct7(i)); out = in1 < in2; break;
-	case 4: mbz(reg && funct7(i)); out = in1 ^ in2; break;
-	case 5: mbz(funct7(i) & ~(unsigned)MASK7 & ~0x20u);
+	case 2: MBZ(reg && funct7(i)); out = (in1 ^ SIGN) < (in2 ^ SIGN); break;
+	case 3: MBZ(reg && funct7(i)); out = in1 < in2; break;
+	case 4: MBZ(reg && funct7(i)); out = in1 ^ in2; break;
+	case 5: MBZ(funct7(i) & ~(unsigned)MASK7 & ~0x20u);
 	        out = funct7(i) & ~(unsigned)MASK7 && in1 & SIGN
 	            ? ~((~in1 & XWORD_MAX) >> (in2 & XWORD_BIT - 1))
 	            :     in1              >> (in2 & XWORD_BIT - 1);
 	        break;
-	case 6: mbz(reg && funct7(i)); out = in1 | in2; break;
-	case 7: mbz(reg && funct7(i)); out = in1 & in2; break;
+	case 6: MBZ(reg && funct7(i)); out = in1 | in2; break;
+	case 7: MBZ(reg && funct7(i)); out = in1 & in2; break;
 	}
 	if (rd(i)) t->ireg[rd(i)] = out & XWORD_MAX;
 }
@@ -50,13 +47,13 @@ static void walu(struct hart *t, uint_least32_t i) {
 	        out;
 	switch (funct3(i)) {
 	case 0: out = reg && funct7(i) ? in1 - in2 : in1 + in2; break;
-	case 1: mbz(funct7(i)); out = in1 << (in2 & 31); break;
-	case 5: mbz(funct7(i) & ~0x20u);
+	case 1: MBZ(funct7(i)); out = in1 << (in2 & 31); break;
+	case 5: MBZ(funct7(i) & ~0x20u);
 	        out = funct7(i) && in1 & XWORD_C(1) << 31
 	            ? ~((~in1 & (XWORD_C(1) << 32) - 1) >> (in2 & 31))
 	            :    (in1 & (XWORD_C(1) << 32) - 1) >> (in2 & 31);
 	        break;
-	default: abort(); /* FIXME */
+	default: illins(t, i); return;
 	}
 	out &= (XWORD_C(1) << 32) - 1;
 	out = (out ^ XWORD_C(1) << 31) - (XWORD_C(1) << 31);
@@ -75,7 +72,7 @@ __attribute__((weak)) execute_t FUNCT7(xops);
 static void xop(struct hart *t, uint_least32_t i) {
 	static execute_t *const xops[0x80] = { FUNCT7(&xops) };
 	execute_t *impl = xops[funct7(i)];
-	if (impl) (*impl)(t, i); else abort(); /* FIXME */
+	(*(impl ? impl : &illins))(t, i);
 }
 
 #if XWORD_BIT > 32
@@ -90,7 +87,7 @@ __attribute__((weak)) execute_t FUNCT7(wops);
 static void wop(struct hart *t, uint_least32_t i) {
 	static execute_t *const wops[0x80] = { FUNCT7(&wops) };
 	execute_t *impl = wops[funct7(i)];
-	if (impl) (*impl)(t, i); else abort(); /* FIXME */
+	(*(impl ? impl : &illins))(t, i);
 }
 #endif
 
@@ -114,7 +111,7 @@ static void bcc(struct hart *t, uint_least32_t i) {
 	case 5: flg = (in1 ^ SIGN) >= (in2 ^ SIGN); break;
 	case 6: flg = in1 <  in2; break;
 	case 7: flg = in1 >= in2; break;
-	default: abort(); /* FIXME */
+	default: illins(t, i); return;
 	}
 	if (flg) t->nextpc = t->pc + bimm(i) & XWORD_MAX;
 }
@@ -167,7 +164,7 @@ static void ldr(struct hart *t, uint_least32_t i) {
 	byte: x |= (xword_t)m[0];
 	      break;
 
-	default: abort(); /* FIXME */
+	default: illins(t, i); return;
 	}
 	if (rd(i)) t->ireg[rd(i)] = (x ^ s) - s & XWORD_MAX;
 }
@@ -196,7 +193,7 @@ static void str(struct hart *t, uint_least32_t i) {
 	byte: m[0] = x       & 0xFF;
 	      break;
 
-	default: abort(); /* FIXME */
+	default: illins(t, i); return;
 	}
 }
 
@@ -217,5 +214,5 @@ __attribute__((weak)) execute_t FUNCT3(memo);
 static void mem(struct hart *t, uint_least32_t i) {
 	static execute_t *const memo[8] = { FUNCT3(memo) };
 	execute_t *impl = memo[funct3(i)];
-	if (impl) (*impl)(t, i); else abort(); /* FIXME */
+	(*(impl ? impl : &illins))(t, i);
 }

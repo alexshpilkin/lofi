@@ -33,6 +33,8 @@ void execute(struct hart *, uint_least32_t);
 unsigned char *map(struct hart *t, xword_t a, xword_t n);
 /* FIXME unmap? */
 
+void illins(struct hart *, uint_least32_t);
+
 void ecall(struct hart *);
 
 void csrread(struct hart *, xword_t *, unsigned);

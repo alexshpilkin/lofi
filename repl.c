@@ -18,6 +18,10 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size) {
 	return &c->image[addr];
 }
 
+void illins(struct hart *t, uint_least32_t i) {
+	abort(); /* FIXME */
+}
+
 void ecall(struct hart *t) {
 	abort(); /* FIXME */
 }
