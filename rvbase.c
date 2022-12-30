@@ -125,16 +125,14 @@ static void bcc(struct hart *t, uint_least32_t i) {
 __attribute__((alias("jal"))) execute_t exec1B;
 
 static void jal(struct hart *t, uint_least32_t i) {
-	if (rd(i)) t->ireg[rd(i)] = t->nextpc;
-	t->nextpc = t->pc + jimm(i) & XWORD_MAX;
+	t->lr = rd(i); t->nextpc = t->pc + jimm(i) & XWORD_MAX;
 }
 
 __attribute__((alias("jalr"))) execute_t exec19;
 
 static void jalr(struct hart *t, uint_least32_t i) {
 	xword_t in = t->ireg[rs1(i)];
-	if (rd(i)) t->ireg[rd(i)] = t->nextpc;
-	t->nextpc = in + iimm(i) & XWORD_MAX - 1;
+	t->lr = rd(i); t->nextpc = in + iimm(i) & XWORD_MAX - 1;
 }
 
 __attribute__((alias("ldr"))) execute_t exec00;

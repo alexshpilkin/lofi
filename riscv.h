@@ -26,6 +26,7 @@ typedef uint_least64_t xword_t;
 
 struct hart {
 	xword_t ireg[32], pc, nextpc;
+	unsigned lr;
 };
 
 struct mhart {

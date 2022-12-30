@@ -139,7 +139,10 @@ int main(int argc, char **argv) {
 		       (unsigned)rs2(i), (int)sizeof irname[0], irname[rs2(i)],
 		       iimm(i), simm(i), bimm(i), uimm(i), jimm(i));
 
+		xword_t nextpc = c.hart.nextpc;
 		execute(&c.hart, i);
+		if (c.hart.lr) c.hart.ireg[c.hart.lr] = nextpc;
+		c.hart.lr = 0;
 		c.hart.pc = c.hart.nextpc;
 	}
 }

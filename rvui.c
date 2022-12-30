@@ -230,12 +230,15 @@ int main(int argc, char **argv) {
 			   (uint_least16_t)ip[1] <<  8 |
 			   (uint_least32_t)ip[2] << 16 |
 			   (uint_least32_t)ip[3] << 24;
-			c.mhart.hart.nextpc = pc + 4 & XWORD_MAX;
+			xword_t nextpc = c.mhart.hart.nextpc = pc + 4 & XWORD_MAX;
 
 			execute(&c.mhart.hart, i);
 			if (c.mhart.hart.nextpc & 3)
-				trap(&c.mhart.hart, XALIGN, c.mhart.hart.nextpc); /* FIXME imprecise */
+				trap(&c.mhart.hart, XALIGN, c.mhart.hart.nextpc);
+			else if (c.mhart.hart.lr)
+				c.mhart.hart.ireg[c.mhart.hart.lr] = nextpc;
 		}
+		c.mhart.hart.lr = 0;
 		c.mhart.hart.pc = c.mhart.hart.nextpc;
 	}
 
