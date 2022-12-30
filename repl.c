@@ -26,6 +26,10 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
 	return &c->image[addr];
 }
 
+void unmap(struct hart *t) {
+	(void)t;
+}
+
 void trap(struct hart *t, xword_t cause, xword_t value) {
 	abort(); /* FIXME */
 }
@@ -142,6 +146,7 @@ int main(int argc, char **argv) {
 		xword_t nextpc = c.hart.nextpc;
 		execute(&c.hart, i);
 		if (c.hart.lr) c.hart.ireg[c.hart.lr] = nextpc;
+		unmap(&c.hart);
 		c.hart.lr = 0;
 		c.hart.pc = c.hart.nextpc;
 	}

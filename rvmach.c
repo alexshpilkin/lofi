@@ -5,6 +5,10 @@
 __attribute__((visibility("hidden"), weak))
 extern char __misa[] __asm__("__misa");
 
+void ecall(struct hart *t) {
+	trap(t, MECALL, 0);
+}
+
 void mret(struct hart *t) {
 	struct mhart *m = (struct mhart *)t;
 	m->hart.nextpc = m->mepc;

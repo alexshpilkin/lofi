@@ -38,7 +38,7 @@ void execute(struct hart *, uint_least32_t);
 
 enum { MAPR, MAPW, MAPX };
 unsigned char *map(struct hart *, xword_t, xword_t, int);
-/* FIXME unmap? */
+void unmap(struct hart *);
 
 enum {
 	XALIGN, XACCES, ILLINS, EBREAK, RALIGN, RACCES, WALIGN, WACCES,

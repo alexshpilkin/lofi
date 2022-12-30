@@ -48,11 +48,13 @@ static size_t elfz(size_t off) {
 	return x;
 }
 
+enum { HTIFRECV = 1, HTIFSEND = 2 };
 struct cpu {
 	struct mhart mhart;
 	unsigned char *image;
 	xword_t base, size; /* FIXME must have 0 < base || base + size < -1 */
-	xword_t sigbeg, sigend;
+	xword_t frhost, tohost, sigbeg, sigend;
+	unsigned ready;
 };
 
 /* FIXME should use when loading */
@@ -69,19 +71,37 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
 	case MAPW: trap(t, WACCES, addr + c->base); return 0;
 	case MAPX: trap(t, XACCES, addr + c->base); return 0;
 	}
+	if (addr == c->frhost - c->base) c->ready |= HTIFRECV;
+	if (addr == c->tohost - c->base) c->ready |= HTIFSEND;
 	return &c->image[addr];
 }
 
-void ecall(struct hart *t) {
+void unmap(struct hart *t) {
 	struct cpu *c = (struct cpu *)t;
-	if (c->mhart.hart.ireg[17 /* a7 */] == 93 /* __NR_exit */) {
-		for (xword_t a = c->sigbeg; a < c->sigend; a++) {
-			unsigned char *m = map(&c->mhart.hart, a, 1, MAPR);
-			if (m) printf("%.2x\n", *m); else abort(); /* FIXME */
+	if (c->ready & HTIFRECV) abort(); /* FIXME */
+	if (c->ready & HTIFSEND) {
+		unsigned char *tohost = &c->image[c->tohost - c->base];
+		xword_t value = tohost[0]
+		    | ((xword_t)tohost[1] <<  8)
+		    | ((xword_t)tohost[2] << 16)
+		    | ((xword_t)tohost[3] << 24)
+#if XWORD_BIT > 32
+		    | ((xword_t)tohost[4] << 32)
+		    | ((xword_t)tohost[5] << 40)
+		    | ((xword_t)tohost[6] << 48)
+		    | ((xword_t)tohost[7] << 56)
+#endif
+		    ;
+		c->ready &= ~HTIFSEND;
+		if (value & 1) {
+			for (xword_t a = c->sigbeg; a < c->sigend; a++) {
+				unsigned char *m = map(t, a, 1, MAPR);
+				if (m) printf("%.2x\n", *m); else abort(); /* FIXME */
+			}
+			exit(value >> 1);
 		}
-		exit(c->mhart.hart.ireg[10]);
+		abort(); /* FIXME */
 	}
-	abort();
 }
 
 xword_t xalign(struct hart *t, xword_t pc) {
@@ -216,7 +236,11 @@ int main(int argc, char **argv) {
 		xword_t value = elfx(base + XWORD_BIT/8);
 		err = "bad ELF symbol table";
 		if (name >= strsize) goto bad;
-		if (!strcmp((char *)&elf[stroff+name], "begin_signature"))
+		if (!strcmp((char *)&elf[stroff+name], "fromhost"))
+			c.frhost = value;
+		else if (!strcmp((char *)&elf[stroff+name], "tohost"))
+			c.tohost = value;
+		else if (!strcmp((char *)&elf[stroff+name], "begin_signature"))
 			c.sigbeg = value;
 		else if (!strcmp((char *)&elf[stroff+name], "end_signature"))
 			c.sigend = value;
@@ -238,6 +262,7 @@ int main(int argc, char **argv) {
 			else if (c.mhart.hart.lr)
 				c.mhart.hart.ireg[c.mhart.hart.lr] = nextpc;
 		}
+		unmap(&c.mhart.hart);
 		c.mhart.hart.lr = 0;
 		c.mhart.hart.pc = c.mhart.hart.nextpc;
 	}
