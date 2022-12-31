@@ -1,6 +1,9 @@
 printf '.PHONY: check clean\n'
-for file in "$1"/isa/rv$2[mu][im]-p-*; do
-	case $file in *.*|*-breakpoint|*-ma_data|*-zicntr) continue;; esac
+for file in "$1"/isa/rv$2[mu][ima]-p-*; do
+	case $file in
+	*.*|*-breakpoint|*-ma_data|*-zicntr) continue;;
+	*ua-*) if [ $2 = 64 ]; then continue; fi;; # FIXME
+	esac
 	name=${file##*/}
 	printf '\n'
 	printf 'check: check-%s\n' $name

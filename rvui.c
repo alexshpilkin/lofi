@@ -62,13 +62,13 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
 	struct cpu *c = (struct cpu *)t;
 	if (addr & size - 1) switch (type) {
 	case MAPR: trap(t, RALIGN, addr); return 0;
-	case MAPW: trap(t, WALIGN, addr); return 0;
+	case MAPW: case MAPA: trap(t, WALIGN, addr); return 0;
 	case MAPX: break; /* handled by higher-level code */
 	}
 	addr -= c->base; /* wraps around on overflow */
 	if (addr >= c->size || size > c->size - addr) switch (type) {
 	case MAPR: trap(t, RACCES, addr + c->base); return 0;
-	case MAPW: trap(t, WACCES, addr + c->base); return 0;
+	case MAPW: case MAPA: trap(t, WACCES, addr + c->base); return 0;
 	case MAPX: trap(t, XACCES, addr + c->base); return 0;
 	}
 	if (addr == c->frhost - c->base) c->ready |= HTIFRECV;

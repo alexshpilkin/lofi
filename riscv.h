@@ -25,7 +25,7 @@ typedef uint_least64_t xword_t;
 #define XWORD_MAX ((XWORD_C(1) << XWORD_BIT - 1 << 1) - 1)
 
 struct hart {
-	xword_t ireg[32], pc, nextpc;
+	xword_t ireg[32], pc, nextpc, lrsc;
 	unsigned lr;
 };
 
@@ -36,7 +36,7 @@ struct mhart {
 
 void execute(struct hart *, uint_least32_t);
 
-enum { MAPR, MAPW, MAPX };
+enum { MAPR, MAPW, MAPA, MAPX };
 unsigned char *map(struct hart *, xword_t, xword_t, int);
 void unmap(struct hart *);
 

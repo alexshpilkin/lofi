@@ -13,7 +13,7 @@ execute_t OPCODE(exec);
 #define FUNCT3(T) \
 	T##0, T##1, T##2, T##3, T##4, T##5, T##6, T##7
 
-execute_t FUNCT3(memo);
+execute_t FUNCT3(memo), FUNCT3(amop);
 
 #define FUNCT7(T) \
 	T##00, T##01, T##02, T##03, T##04, T##05, T##06, T##07, \
