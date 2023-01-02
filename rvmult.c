@@ -10,7 +10,17 @@ DEFINE_EXTENSION(M)
 
 #define SIGN (XWORD_C(1) << XWORD_BIT - 1)
 
+#if XWORD_BIT <= 32 && defined UINT_LEAST64_MAX
+#define dxword_t uint_least64_t
+#elif XWORD_BIT <= 64 && defined __SIZEOF_INT128__
+#define dxword_t unsigned __int128
+#endif
+
 static xword_t mulhu(xword_t x, xword_t y, xword_t neg) {
+#ifdef dxword_t
+	dxword_t z = (dxword_t)x * y;
+	return neg ? -(-z >> XWORD_BIT) : z >> XWORD_BIT;
+#else
 	xword_t a = x >> XWORD_BIT / 2,
 	        b = x & (XWORD_C(1) << XWORD_BIT / 2) - 1,
 	        c = y >> XWORD_BIT / 2,
@@ -20,6 +30,7 @@ static xword_t mulhu(xword_t x, xword_t y, xword_t neg) {
 	r += q >> XWORD_BIT / 2; q &= (XWORD_C(1) << XWORD_BIT / 2) - 1;
 	r += p + q + (s >> XWORD_BIT / 2) >> XWORD_BIT / 2;
 	return r + (neg && (p + q << XWORD_BIT / 2) + s & XWORD_MAX);
+#endif
 }
 
 __attribute__((alias("xmul"))) execute_t xops01;
