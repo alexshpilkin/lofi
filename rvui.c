@@ -248,7 +248,7 @@ int main(int argc, char **argv) {
 
 	for (;;) {
 		xword_t pc = c.mhart.hart.pc;
-		unsigned char *ip = map(&c.mhart.hart, pc, 4, MAPX);
+		const unsigned char *restrict ip = map(&c.mhart.hart, pc, 4, MAPX);
 		if (ip) {
 			uint_least32_t i = ip[0]       |
 			   (uint_least16_t)ip[1] <<  8 |

@@ -138,7 +138,7 @@ static void jalr(struct hart *t, uint_least32_t i) {
 __attribute__((alias("ldr"))) execute_t exec00;
 
 static void ldr(struct hart *t, uint_least32_t i) {
-	unsigned char *restrict m;
+	const unsigned char *restrict m;
 	xword_t a = t->ireg[rs1(i)] + iimm(i) & XWORD_MAX,
 	        x = 0,
 	        s = 0;
