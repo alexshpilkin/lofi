@@ -33,6 +33,7 @@ struct mhart {
 	struct hart hart;
 	xword_t mstatus, mie, mtvec, mscratch, mepc, mcause, mtval;
 	xword_t pending;
+#define UMODE ((xword_t)1) /* hijacked bit in pending */
 };
 
 void execute(struct hart *, uint_least32_t);
