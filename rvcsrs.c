@@ -18,8 +18,6 @@ static void hyper(struct hart *t, uint_least32_t i) {
 	trap(t, ILLINS, i);
 }
 
-__attribute__((alias("sys"))) execute_t exec1C;
-
 static void sys(struct hart *t, uint_least32_t i) {
 	xword_t in1 = funct3(i) & 4 ? rs1(i) : t->ireg[rs1(i)],
 	        nul = 0, *out = rd(i) ? &t->ireg[rd(i)] : &nul;
@@ -32,3 +30,5 @@ static void sys(struct hart *t, uint_least32_t i) {
 	case 3: case 7: if (rs1(i)) csrxclr(t, out, csr, in1); else csrread(t, out, csr); break;
 	}
 }
+
+__attribute__((alias("sys"))) execute_t exec1C;

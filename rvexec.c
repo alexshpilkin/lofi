@@ -4,11 +4,11 @@
 #include "rvexec.h"
 #include "rvinsn.h"
 
-__attribute__((alias("illins"), weak)) execute_t OPCODE(exec);
-
 static void illins(struct hart *t, uint_least32_t i) {
 	trap(t, ILLINS, i);
 }
+
+__attribute__((alias("illins"), weak)) execute_t OPCODE(exec);
 
 void execute(struct hart *t, uint_least32_t i) {
 	static execute_t *const exec[0x20] = { OPCODE(&exec) };

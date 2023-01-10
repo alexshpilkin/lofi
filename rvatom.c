@@ -16,8 +16,6 @@ static void illins(struct hart *t, uint_least32_t i) {
 	trap(t, ILLINS, i);
 }
 
-__attribute__((alias("amow"))) execute_t amop2;
-
 static void amow(struct hart *t, uint_least32_t i) {
 	unsigned op = funct7(i) >> 2;
 	unsigned char *restrict m = map(t, t->ireg[rs1(i)], 4, op == 2 ? MAPR : MAPA);
@@ -52,16 +50,16 @@ static void amow(struct hart *t, uint_least32_t i) {
 	m[0] = out       & 0xFF;
 }
 
-#if XWORD_BIT >= 64
-__attribute__((alias("amod"))) execute_t amop3;
+__attribute__((alias("amow"))) execute_t amop2;
 
+#if XWORD_BIT >= 64
 static void amod(struct hart *t, uint_least32_t i) {
 #warning "64-bit atomics not implemented" /* FIXME */
 	trap(t, ILLINS, i);
 }
-#endif
 
-__attribute__((alias("amo"))) execute_t exec0B;
+__attribute__((alias("amod"))) execute_t amop3;
+#endif
 
 #define amop2 amop2_ /* defined here */
 #if XWORD_BIT >= 64
@@ -77,3 +75,5 @@ static void amo(struct hart *t, uint_least32_t i) {
 	static execute_t *const amop[8] = { FUNCT3(&amop) };
 	(*amop[funct3(i)])(t, i);
 }
+
+__attribute__((alias("amo"))) execute_t exec0B;

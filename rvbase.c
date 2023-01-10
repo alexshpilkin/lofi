@@ -18,8 +18,6 @@ static void illins(struct hart *t, uint_least32_t i) {
 
 /* FIXME alu/alw duplication */
 
-__attribute__((alias("xalu"))) execute_t exec04, xops00, xops20;
-
 static void xalu(struct hart *t, uint_least32_t i) {
 	enum { MASK7 = XWORD_BIT / 32 - 1 }; /* shamt bleeds into funct7 */
 	unsigned reg = opcode(i) & 0x20;
@@ -45,9 +43,9 @@ static void xalu(struct hart *t, uint_least32_t i) {
 	if (rd(i)) t->ireg[rd(i)] = out & XWORD_MAX;
 }
 
-#if XWORD_BIT > 32
-__attribute__((alias("walu"))) execute_t exec06, wops00, wops20;
+__attribute__((alias("xalu"))) execute_t exec04, xops00, xops20;
 
+#if XWORD_BIT > 32
 static void walu(struct hart *t, uint_least32_t i) {
 	unsigned reg = opcode(i) & 0x20;
 	xword_t in1 = t->ireg[rs1(i)],
@@ -67,9 +65,9 @@ static void walu(struct hart *t, uint_least32_t i) {
 	out = (out ^ XWORD_C(1) << 31) - (XWORD_C(1) << 31);
 	if (rd(i)) t->ireg[rd(i)] = out & XWORD_MAX;
 }
-#endif
 
-__attribute__((alias("xop"))) execute_t exec0C;
+__attribute__((alias("walu"))) execute_t exec06, wops00, wops20;
+#endif
 
 #define xops00 xops00_ /* defined here */
 #define xops20 xops20_ /* defined here */
@@ -82,9 +80,9 @@ static void xop(struct hart *t, uint_least32_t i) {
 	(*xops[funct7(i)])(t, i);
 }
 
-#if XWORD_BIT > 32
-__attribute__((alias("wop"))) execute_t exec0E;
+__attribute__((alias("xop"))) execute_t exec0C;
 
+#if XWORD_BIT > 32
 #define wops00 wops00_ /* defined here */
 #define wops20 wops20_ /* defined here */
 __attribute__((alias("illins"), weak)) execute_t FUNCT7(wops);
@@ -95,16 +93,16 @@ static void wop(struct hart *t, uint_least32_t i) {
 	static execute_t *const wops[0x80] = { FUNCT7(&wops) };
 	(*wops[funct7(i)])(t, i);
 }
-#endif
 
-__attribute__((alias("lui"))) execute_t exec05, exec0D;
+__attribute__((alias("wop"))) execute_t exec0E;
+#endif
 
 static void lui(struct hart *t, uint_least32_t i) {
 	xword_t out = opcode(i) & 0x20 ? uimm(i) : t->pc + uimm(i) & XWORD_MAX;
 	if (rd(i)) t->ireg[rd(i)] = out;
 }
 
-__attribute__((alias("bcc"))) execute_t exec18;
+__attribute__((alias("lui"))) execute_t exec05, exec0D;
 
 static void bcc(struct hart *t, uint_least32_t i) {
 	xword_t in1 = t->ireg[rs1(i)],
@@ -122,20 +120,20 @@ static void bcc(struct hart *t, uint_least32_t i) {
 	if (flg) t->nextpc = t->pc + bimm(i) & XWORD_MAX;
 }
 
-__attribute__((alias("jal"))) execute_t exec1B;
+__attribute__((alias("bcc"))) execute_t exec18;
 
 static void jal(struct hart *t, uint_least32_t i) {
 	t->lr = rd(i); t->nextpc = t->pc + jimm(i) & XWORD_MAX;
 }
 
-__attribute__((alias("jalr"))) execute_t exec19;
+__attribute__((alias("jal"))) execute_t exec1B;
 
 static void jalr(struct hart *t, uint_least32_t i) {
 	xword_t in = t->ireg[rs1(i)];
 	t->lr = rd(i); t->nextpc = in + iimm(i) & XWORD_MAX - 1;
 }
 
-__attribute__((alias("ldr"))) execute_t exec00;
+__attribute__((alias("jalr"))) execute_t exec19;
 
 static void ldr(struct hart *t, uint_least32_t i) {
 	const unsigned char *restrict m;
@@ -173,7 +171,7 @@ static void ldr(struct hart *t, uint_least32_t i) {
 	if (rd(i)) t->ireg[rd(i)] = (x ^ s) - s & XWORD_MAX;
 }
 
-__attribute__((alias("str"))) execute_t exec08;
+__attribute__((alias("ldr"))) execute_t exec00;
 
 static void str(struct hart *t, uint_least32_t i) {
 	xword_t a = t->ireg[rs1(i)] + simm(i) & XWORD_MAX,
@@ -201,13 +199,13 @@ static void str(struct hart *t, uint_least32_t i) {
 	}
 }
 
-__attribute__((alias("fence"))) execute_t memo0, memo1;
+__attribute__((alias("str"))) execute_t exec08;
 
 static void fence(struct hart *t, uint_least32_t i) {
 	(void)t; (void)i; /* FIXME */
 }
 
-__attribute__((alias("mem"))) execute_t exec03;
+__attribute__((alias("fence"))) execute_t memo0, memo1;
 
 #define memo0 memo0_ /* defined here */
 #define memo1 memo1_ /* defined here */
@@ -219,3 +217,5 @@ static void mem(struct hart *t, uint_least32_t i) {
 	static execute_t *const memo[8] = { FUNCT3(memo) };
 	(*memo[funct3(i)])(t, i);
 }
+
+__attribute__((alias("mem"))) execute_t exec03;

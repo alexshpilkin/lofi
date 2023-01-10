@@ -33,8 +33,6 @@ static xword_t mulhu(xword_t x, xword_t y, xword_t neg) {
 #endif
 }
 
-__attribute__((alias("xmul"))) execute_t xops01;
-
 static void xmul(struct hart *t, uint_least32_t i) {
 	xword_t in1 = t->ireg[rs1(i)],
 	        in2 = t->ireg[rs2(i)],
@@ -60,9 +58,9 @@ static void xmul(struct hart *t, uint_least32_t i) {
 	if (rd(i)) t->ireg[rd(i)] = (neg ? -out : out) & XWORD_MAX;
 }
 
-#if XWORD_BIT > 32
-__attribute__((alias("wmul"))) execute_t wops01;
+__attribute__((alias("xmul"))) execute_t xops01;
 
+#if XWORD_BIT > 32
 static void wmul(struct hart *t, uint_least32_t i) {
 	xword_t in1 = t->ireg[rs1(i)],
 	        in2 = t->ireg[rs2(i)],
@@ -88,4 +86,6 @@ static void wmul(struct hart *t, uint_least32_t i) {
 	out = (out ^ XWORD_C(1) << 31) - (XWORD_C(1) << 31);
 	if (rd(i)) t->ireg[rd(i)] = out & XWORD_MAX;
 }
+
+__attribute__((alias("wmul"))) execute_t wops01;
 #endif
