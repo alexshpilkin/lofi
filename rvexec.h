@@ -41,4 +41,10 @@ execute_t FUNCT7(xops), FUNCT7(wops);
 	          ".skip 1 << ('" #C "' - 'A')\n\t" \
 	          ".popsection" \
 	        );
+#define DEFINE_INTERRUPT(N) DEFINE_INTERRUPT_(N)
+#define DEFINE_INTERRUPT_(N) \
+	__asm__ ( ".pushsection .comment.mies, \"\", @nobits\n\t" \
+	          ".skip 1 << " #N "\n\t" \
+	          ".popsection" \
+	        );
 #endif

@@ -45,6 +45,15 @@ void unmap(struct hart *);
 enum {
 	XALIGN, XACCES, ILLINS, EBREAK, RALIGN, RACCES, WALIGN, WACCES,
 	UECALL, SECALL,   MECALL = 0xB, XPAGED, RPAGED,   WPAGED = 0xF,
+/* this may not fit in an int */
+#define INTRPT (XWORD_C(1) << XWORD_BIT - 1)
+/* these need to be accessible in assembler */
+#define SSI 1
+#define MSI 3
+#define STI 5
+#define MTI 7
+#define SEI 11
+#define MEI 13
 };
 void trap(struct hart *, xword_t, xword_t);
 

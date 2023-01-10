@@ -6,24 +6,25 @@ SPIKE  = spike
 TESTS  = riscv-tests
 XLEN   = 32
 
-all: repl rvui
+all: mini repl rvui
+mini: mini.o rvatom.o rvbase.o rvcsrs.o rvexec.o rvmach.o rvmies.ld rvmisa.ld rvmult.o
 repl: repl.o rvbase.o rvcsrs.o rvexec.o rvmult.o
 rvui: rvui.o rvatom.o rvbase.o rvcsrs.o rvexec.o rvmach.o rvmisa.ld rvmult.o
 rvui.o: elf.h
-repl.o rvatom.o rvbase.o rvcsrs.o rvexec.o rvmach.o rvmult.o rvui.o: riscv.h
-rvatom.o rvbase.o rvcsrs.o rvexec.o rvmult.o: rvexec.h
+mini.o repl.o rvatom.o rvbase.o rvcsrs.o rvexec.o rvmach.o rvmult.o rvui.o: riscv.h
+mini.o rvatom.o rvbase.o rvcsrs.o rvexec.o rvmult.o: rvexec.h
 repl.o rvatom.o rvbase.o rvcsrs.o rvexec.o rvmult.o: rvinsn.h
 check: check.mk rvui
 	+$(MAKE) $(MFLAGS) -f check.mk $@
 check.mk: check.sh $(TESTS)
 	+$(SHELL) ./check.sh $(TESTS) $(XLEN) > $@
 clean: clean-check
-	rm -f repl rvui repl.o rvatom.o rvbase.o rvcsrs.o rvexec.o rvmach.o rvmult.o rvui.o check.mk
+	rm -f mini repl rvui mini.o repl.o rvatom.o rvbase.o rvcsrs.o rvexec.o rvmach.o rvmult.o rvui.o check.mk
 clean-check: check.mk
 	+$(MAKE) $(MFLAGS) -f check.mk clean
 install:
 	mkdir -p $(DESTDIR)$(prefix)/bin
-	install -m 755 repl rvui $(DESTDIR)$(prefix)/bin
+	install -m 755 mini repl rvui $(DESTDIR)$(prefix)/bin
 
 .c.o:
 	$(CC) -DXWORD_BIT=$(XLEN) $(CPPFLAGS) $(CFLAGS) -c -o $@ $<

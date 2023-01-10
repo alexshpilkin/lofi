@@ -3,6 +3,7 @@
 *.ref
 .direnv
 /check.mk
+/mini
 /result
 /result-*
 /repl

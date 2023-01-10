@@ -16,7 +16,7 @@ stdenv.mkDerivation {
 
 	checkInputs = [ dtc spike ];
 
-	CPPFLAGS = "-std=c99 -Wall -Wpedantic -Wno-parentheses";
+	CPPFLAGS = "-std=c99 -D_POSIX_C_SOURCE=200809L -Wall -Wpedantic -Wno-parentheses";
 	makeFlags = [
 		"TESTS=${riscv-tests}/share/riscv-tests"
 		"XLEN=${toString xlen}"
