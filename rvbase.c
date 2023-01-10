@@ -71,12 +71,12 @@ __attribute__((alias("walu"))) execute_t exec06, wops00, wops20;
 
 #define xops00 xops00_ /* defined here */
 #define xops20 xops20_ /* defined here */
-__attribute__((alias("illins"), weak)) execute_t FUNCT7(xops);
+__attribute__((alias("illins"), weak)) execute_t HEX7(xops);
 #undef xops00
 #undef xops20
 
 static void xop(struct hart *t, uint_least32_t i) {
-	static execute_t *const xops[0x80] = { FUNCT7(&xops) };
+	static execute_t *const xops[0x80] = { HEX7(&xops) };
 	(*xops[funct7(i)])(t, i);
 }
 
@@ -85,12 +85,12 @@ __attribute__((alias("xop"))) execute_t exec0C;
 #if XWORD_BIT > 32
 #define wops00 wops00_ /* defined here */
 #define wops20 wops20_ /* defined here */
-__attribute__((alias("illins"), weak)) execute_t FUNCT7(wops);
+__attribute__((alias("illins"), weak)) execute_t HEX7(wops);
 #undef wops00
 #undef wops20
 
 static void wop(struct hart *t, uint_least32_t i) {
-	static execute_t *const wops[0x80] = { FUNCT7(&wops) };
+	static execute_t *const wops[0x80] = { HEX7(&wops) };
 	(*wops[funct7(i)])(t, i);
 }
 
@@ -209,12 +209,12 @@ __attribute__((alias("fence"))) execute_t memo0, memo1;
 
 #define memo0 memo0_ /* defined here */
 #define memo1 memo1_ /* defined here */
-__attribute__((alias("illins"), weak)) execute_t FUNCT3(memo);
+__attribute__((alias("illins"), weak)) execute_t HEX3(memo);
 #undef memo0
 #undef memo1
 
 static void mem(struct hart *t, uint_least32_t i) {
-	static execute_t *const memo[8] = { FUNCT3(memo) };
+	static execute_t *const memo[8] = { HEX3(memo) };
 	(*memo[funct3(i)])(t, i);
 }
 

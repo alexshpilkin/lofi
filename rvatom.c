@@ -65,14 +65,14 @@ __attribute__((alias("amod"))) execute_t amop3;
 #if XWORD_BIT >= 64
 #define amop3 amop3_ /* defined here */
 #endif
-__attribute__((alias("illins"), weak)) execute_t FUNCT3(amop);
+__attribute__((alias("illins"), weak)) execute_t HEX3(amop);
 #undef amop2
 #if XWORD_BIT >= 64
 #undef amop3
 #endif
 
 static void amo(struct hart *t, uint_least32_t i) {
-	static execute_t *const amop[8] = { FUNCT3(&amop) };
+	static execute_t *const amop[8] = { HEX3(&amop) };
 	(*amop[funct3(i)])(t, i);
 }
 
