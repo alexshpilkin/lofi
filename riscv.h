@@ -55,7 +55,7 @@ enum {
 #define SEI 11
 #define MEI 13
 };
-void trap(struct hart *, xword_t, xword_t);
+__attribute__((cold)) void trap(struct hart *, xword_t, xword_t);
 
 void ecall(struct hart *);
 void mret(struct hart *);
