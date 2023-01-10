@@ -38,7 +38,7 @@ struct mhart {
 
 void execute(struct hart *, uint_least32_t);
 
-enum { MAPR, MAPW, MAPA, MAPX };
+enum { MAPR, MAPX, MAPA, MAPW };
 unsigned char *map(struct hart *, xword_t, xword_t, int);
 void unmap(struct hart *);
 
