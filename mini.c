@@ -24,56 +24,103 @@ DEFINE_INTERRUPT(MTI)
 static unsigned char image[IMGSIZ], uart[8], msip[4], mtime[8], mtimecmp[8], syscon[4];
 static uint_least64_t time_, timecmp, timeorg;
 
-enum {
-	UART     = 0x001,
-	MSIP     = 0x100,
-	MTIMECMP = 0x200,
-	MTIME    = 0x400,
-	SYSCON   = 0x800,
-};
-static unsigned ready;
-
 static timer_t timer;
 static volatile sig_atomic_t fired;
 
 /* FIXME */
 #define unlikely(C) (__builtin_expect(!!(C), 0))
 
-unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
-	if unlikely(addr & size - 1) switch (type) {
-	case MAPR: trap(t, RALIGN, addr); return 0;
-	case MAPX: break; /* handled by higher-level code */
-	case MAPA: case MAPW: trap(t, WALIGN, addr); return 0;
-	}
+typedef unsigned char *map_t(struct hart *, xword_t, xword_t, int);
+typedef void wbk_t(struct hart *);
 
-	if unlikely(addr < BASE) {
+static wbk_t *wbk; /* FIXME move to hart */
 
-	if (unlikely(addr - 0x10000000 < sizeof uart) && size == 1) {
-		switch (addr & 7) {
-		case 0:
-			if (type <= MAPA && !(uart[3] & 0x80))
-				(void)read(STDIN_FILENO, &uart[0], 1);
-			if (type >= MAPA) ready |= UART;
-			break;
-		case 1: uart[1] = 0; break;
-		case 2: uart[2] = 0; break;
-		case 4: uart[4] = 0; break;
-		case 5: { /* FIXME EOF on input? */
-			struct pollfd fds[2] = {0};
-			fds[0].fd = STDIN_FILENO;  fds[0].events = POLLIN;
-			fds[1].fd = STDOUT_FILENO; fds[1].events = POLLOUT;
-			poll(&fds[0], sizeof fds / sizeof fds[0], 0);
-			uart[5] = (fds[0].revents & POLLIN  ? 0x01 : 0) |
-			          (fds[1].revents & POLLOUT ? 0x60 : 0);
-			break; }
-		case 6: uart[6] = 0; break;
-		}
-		return &uart[addr & 7];
+static void uartwbk(struct hart *t) {
+	if (!(uart[3] & 0x80) && write(STDOUT_FILENO, &uart[0], 1) < 0) abort();
+}
+
+static unsigned char *uartmap(struct hart *t, xword_t addr, xword_t size, int type) {
+	addr &= 0xFFFFF;
+	if unlikely(addr >= sizeof uart || size != 1) return 0;
+
+	switch (addr & 7) {
+	case 0:
+		if (type <= MAPA && !(uart[3] & 0x80))
+			(void)read(STDIN_FILENO, &uart[0], 1);
+		if (type >= MAPA) wbk = &uartwbk;
+		break;
+	case 1: uart[1] = 0; break;
+	case 2: uart[2] = 0; break;
+	case 4: uart[4] = 0; break;
+	case 5: { /* FIXME EOF on input? */
+		struct pollfd fds[2] = {0};
+		fds[0].fd = STDIN_FILENO;  fds[0].events = POLLIN;
+		fds[1].fd = STDOUT_FILENO; fds[1].events = POLLOUT;
+		poll(&fds[0], sizeof fds / sizeof fds[0], 0);
+		uart[5] = (fds[0].revents & POLLIN  ? 0x01 : 0) |
+		          (fds[1].revents & POLLOUT ? 0x60 : 0);
+		break; }
+	case 6: uart[6] = 0; break;
 	}
-	if (unlikely(addr == 0x11000000) && size == 4) {
-		ready |= MSIP; return &msip[0];
+	return &uart[addr & 7];
+}
+
+__attribute__((alias("uartmap"))) map_t meg100;
+
+static void sigalrm(int sig) {
+	(void)sig; fired = 1;
+}
+
+static void mtimecmpwbk(struct hart *t) {
+	struct mhart *m = (struct mhart *)t;
+
+	timecmp =         mtimecmp[0]       |
+	  (uint_least64_t)mtimecmp[1] <<  8 |
+	  (uint_least64_t)mtimecmp[2] << 16 |
+	  (uint_least64_t)mtimecmp[3] << 24 |
+	  (uint_least64_t)mtimecmp[4] << 32 |
+	  (uint_least64_t)mtimecmp[5] << 40 |
+	  (uint_least64_t)mtimecmp[6] << 48 |
+	  (uint_least64_t)mtimecmp[7] << 56;
+
+	struct itimerspec it = {0};
+	if (time_ >= timecmp) {
+		timer_settime(timer, 0, &it, 0); /* disarm */
+		m->pending |= XWORD_C(1) << MTI;
+	} else {
+		uint_least64_t deadline = timecmp - timeorg;
+		it.it_value.tv_sec  = deadline / 1000000;
+		it.it_value.tv_nsec = deadline % 1000000 * 1000;
+		timer_settime(timer, TIMER_ABSTIME, &it, 0);
+		m->pending &= ~(XWORD_C(1) << MTI);
 	}
-	if (unlikely(addr - 0x11004000 < sizeof mtimecmp) && size == 4) {
+}
+
+static void mtimewbk(struct hart *t) {
+	uint_least64_t tm = time_ - timeorg;
+	time_ =           mtime[0]       |
+	  (uint_least64_t)mtime[1] <<  8 |
+	  (uint_least64_t)mtime[2] << 16 |
+	  (uint_least64_t)mtime[3] << 24 |
+	  (uint_least64_t)mtime[4] << 32 |
+	  (uint_least64_t)mtime[5] << 40 |
+	  (uint_least64_t)mtime[6] << 48 |
+	  (uint_least64_t)mtime[7] << 56;
+	timeorg = time_ - tm;
+	mtimecmpwbk(t);
+}
+
+static void msipwbk(struct hart *t) {
+	xword_t v = msip[0]        |
+	  ((xword_t)msip[1] << 8)  |
+	  ((xword_t)msip[2] << 16) |
+	  ((xword_t)msip[3] << 24);
+	if (v) abort();
+}
+
+static unsigned char *clintmap(struct hart *t, xword_t addr, xword_t size, int type) {
+	addr &= 0xFFFFF;
+	if (addr - 0x04000 < sizeof mtimecmp && size == 4) {
 		mtimecmp[7] = timecmp >> 56 & 0xFF;
 		mtimecmp[6] = timecmp >> 48 & 0xFF;
 		mtimecmp[5] = timecmp >> 40 & 0xFF;
@@ -82,10 +129,10 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
 		mtimecmp[2] = timecmp >> 16 & 0xFF;
 		mtimecmp[1] = timecmp >>  8 & 0xFF;
 		mtimecmp[0] = timecmp       & 0xFF;
-		if (type >= MAPA) ready |= MTIMECMP;
+		if (type >= MAPA) wbk = &mtimecmpwbk;
 		return &mtimecmp[addr & 4];
 	}
-	if (unlikely(addr - 0x1100BFF8 < sizeof mtime) && size == 4) {
+	if (addr - 0x0BFF8 < sizeof mtime && size == 4) {
 		struct timespec ts;
 		clock_gettime(CLOCK_MONOTONIC, &ts);
 		time_ = timeorg +
@@ -100,101 +147,79 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
 		mtime[2] = time_ >> 16 & 0xFF;
 		mtime[1] = time_ >>  8 & 0xFF;
 		mtime[0] = time_       & 0xFF;
-		if (type >= MAPA) ready |= MTIME;
+		if (type >= MAPA) wbk = &mtimewbk;
 		return &mtime[addr & 4];
 	}
-	if (unlikely(addr == 0x11100000) && size == 4) {
-		syscon[0] = syscon[1] = syscon[2] = syscon[3] = 0;
-		if (type >= MAPA) ready |= SYSCON;
-		return &syscon[0];
+	if (addr == 0x00000 && size == 4) {
+		wbk = &msipwbk; return &msip[0];
 	}
+	return 0;
+}
 
-	} /* addr < BASE */
+__attribute__((alias("clintmap"))) map_t meg110;
 
+static void sysconwbk(struct hart *t) {
+	xword_t v = syscon[0]        |
+	  ((xword_t)syscon[1] <<  8) |
+	  ((xword_t)syscon[2] << 16) |
+	  ((xword_t)syscon[3] << 24);
+
+	syscon[0] = syscon[1] = syscon[2] = syscon[3] = 0;
+
+	switch (v) {
+	case 0x5555: exit(EXIT_SUCCESS);
+	case 0x7777: /* FIXME restart */
+	default:     abort();
+	}
+}
+
+static unsigned char *sysconmap(struct hart *t, xword_t addr, xword_t size, int type) {
+	addr &= 0xFFFFF;
+	if unlikely(addr != 0x00000 || size != 4) return 0;
+	syscon[0] = syscon[1] = syscon[2] = syscon[3] = 0;
+	if (type >= MAPA) wbk = &sysconwbk;
+	return &syscon[0];
+}
+
+__attribute__((alias("sysconmap"))) map_t meg111;
+
+static unsigned char *imagemap(struct hart *t, xword_t addr, xword_t size, int type) {
 	addr -= BASE;
-	if unlikely(addr >= sizeof image || size > sizeof image - addr) switch (type) {
+	if unlikely(addr >= sizeof image || size > sizeof image - addr)
+		return 0;
+	return &image[addr];
+}
+
+#define meg100 meg100_ /* defined here */
+#define meg110 meg110_ /* defined here */
+#define meg111 meg111_ /* defined here */
+__attribute__((alias("imagemap"), weak)) map_t HEX12(meg); /* FIXME */
+#undef meg100
+#undef meg110
+#undef meg111
+
+unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
+	static map_t *const meg[0x1000] = { HEX12(&meg) };
+	if unlikely(addr & size - 1) switch (type) {
+	case MAPR: trap(t, RALIGN, addr); return 0;
+	case MAPX: break; /* handled by higher-level code */
+	case MAPA: case MAPW: trap(t, WALIGN, addr); return 0;
+	}
+	unsigned char *p = (*meg[addr >> 20])(t, addr, size, type);
+	if unlikely(!p) switch (type) {
 	case MAPR: trap(t, RACCES, addr); return 0;
 	case MAPX: trap(t, XACCES, addr); return 0;
 	case MAPA: case MAPW: trap(t, WACCES, addr); return 0;
 	}
-	return &image[addr];
-}
-
-static void sigalrm(int sig) {
-	(void)sig; fired = 1;
+	return p;
 }
 
 void unmap(struct hart *t) {
 	struct mhart *restrict m = (struct mhart *)t;
 
-	if unlikely(ready) {
-
-	if unlikely(ready & UART) {
-		if (!(uart[3] & 0x80) && write(STDOUT_FILENO, &uart[0], 1) < 0) abort();
-		ready &= ~UART;
+	if unlikely(wbk) {
+		(*wbk)(t); wbk = 0;
 	}
-	if unlikely(ready & SYSCON) {
-		xword_t v = syscon[0]        |
-		  ((xword_t)syscon[1] <<  8) |
-		  ((xword_t)syscon[2] << 16) |
-		  ((xword_t)syscon[3] << 24);
-
-		syscon[0] = syscon[1] = syscon[2] = syscon[3] = 0;
-		ready &= ~SYSCON;
-
-		switch (v) {
-		case 0x5555: exit(EXIT_SUCCESS);
-		case 0x7777: /* FIXME restart */
-		default:     abort();
-		}
-	}
-	if unlikely(ready & MSIP) {
-		xword_t v = msip[0]        |
-		  ((xword_t)msip[1] << 8)  |
-		  ((xword_t)msip[2] << 16) |
-		  ((xword_t)msip[3] << 24);
-		if (v) abort();
-		ready &= ~MSIP;
-	}
-	if unlikely(ready & MTIME) {
-		uint_least64_t t = time_ - timeorg;
-		time_ =           mtime[0]       |
-		  (uint_least64_t)mtime[1] <<  8 |
-		  (uint_least64_t)mtime[2] << 16 |
-		  (uint_least64_t)mtime[3] << 24 |
-		  (uint_least64_t)mtime[4] << 32 |
-		  (uint_least64_t)mtime[5] << 40 |
-		  (uint_least64_t)mtime[6] << 48 |
-		  (uint_least64_t)mtime[7] << 56;
-		timeorg = time_ - t;
-		goto schedule;
-	}
-	if unlikely(ready & MTIMECMP) schedule: {
-		timecmp =         mtimecmp[0]       |
-		  (uint_least64_t)mtimecmp[1] <<  8 |
-		  (uint_least64_t)mtimecmp[2] << 16 |
-		  (uint_least64_t)mtimecmp[3] << 24 |
-		  (uint_least64_t)mtimecmp[4] << 32 |
-		  (uint_least64_t)mtimecmp[5] << 40 |
-		  (uint_least64_t)mtimecmp[6] << 48 |
-		  (uint_least64_t)mtimecmp[7] << 56;
-
-		struct itimerspec it = {0};
-		if (time_ >= timecmp) {
-			timer_settime(timer, 0, &it, 0); /* disarm */
-			m->pending |= XWORD_C(1) << MTI;
-		} else {
-			uint_least64_t deadline = timecmp - timeorg;
-			it.it_value.tv_sec  = deadline / 1000000;
-			it.it_value.tv_nsec = deadline % 1000000 * 1000;
-			timer_settime(timer, TIMER_ABSTIME, &it, 0);
-			m->pending &= ~(XWORD_C(1) << MTI);
-		}
-		ready &= ~(MTIME | MTIMECMP);
-	}
-
-	} /* ready */
-
 	if unlikely(fired) {
 		struct timespec ts;
 		clock_gettime(CLOCK_MONOTONIC, &ts);
