@@ -21,6 +21,7 @@ stdenv.mkDerivation {
 		"TESTS=${riscv-tests}/share/riscv-tests"
 		"XLEN=${toString xlen}"
 	];
+	hardeningDisable = [ "all" ];
 	postConfigure = ''
 		makeFlagsArray+=(prefix="$prefix")
 	'';

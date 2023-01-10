@@ -5,10 +5,11 @@
 			supportedSystems = systems.flakeExposed or systems.supported.hydra;
 			forAllVariants = make: genAttrs supportedSystems (system: let
 				pkgs = nixpkgs.legacyPackages.${system};
+				stdenv = pkgs.llvmPackages_latest.stdenv;
 			in rec {
 				default = rv32;
-				rv32 = make { inherit pkgs; xlen = 32; };
-				rv64 = make { inherit pkgs; xlen = 64; };
+				rv32 = make { inherit pkgs stdenv; xlen = 32; };
+				rv64 = make { inherit pkgs stdenv; xlen = 64; };
 			});
 		in {
 			packages = forAllVariants (import ./.);

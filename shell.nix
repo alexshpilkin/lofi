@@ -1,6 +1,7 @@
 #!/usr/bin/env -S nix develop -f
 
 { pkgs ? import <nixpkgs> { }
+, stdenv ? pkgs.stdenv
 , gdb ? pkgs.gdb
 , lofi ? import ./. args
 , valgrind ? pkgs.valgrind
@@ -8,7 +9,7 @@
 , ...
 }@args:
 
-pkgs.mkShell {
+pkgs.mkShell.override { inherit stdenv; } {
 	packages = [ gdb valgrind ];
 	inputsFrom = [ lofi ];
 }
