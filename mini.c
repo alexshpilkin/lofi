@@ -33,6 +33,9 @@ enum {
 };
 static unsigned ready;
 
+static timer_t timer;
+static volatile sig_atomic_t fired;
+
 /* FIXME */
 #define unlikely(C) (__builtin_expect(!!(C), 0))
 
@@ -42,6 +45,9 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
 	case MAPX: break; /* handled by higher-level code */
 	case MAPA: case MAPW: trap(t, WALIGN, addr); return 0;
 	}
+
+	if unlikely(addr < BASE) {
+
 	if (unlikely(addr - 0x10000000 < sizeof uart) && size == 1) {
 		switch (addr & 7) {
 		case 0:
@@ -80,6 +86,12 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
 		return &mtimecmp[addr & 4];
 	}
 	if (unlikely(addr - 0x1100BFF8 < sizeof mtime) && size == 4) {
+		struct timespec ts;
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+		time_ = timeorg +
+		        (uint_least64_t)ts.tv_sec * 1000000 +
+		        ts.tv_nsec / 1000;
+
 		mtime[7] = time_ >> 56 & 0xFF;
 		mtime[6] = time_ >> 48 & 0xFF;
 		mtime[5] = time_ >> 40 & 0xFF;
@@ -96,6 +108,9 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
 		if (type >= MAPA) ready |= SYSCON;
 		return &syscon[0];
 	}
+
+	} /* addr < BASE */
+
 	addr -= BASE;
 	if unlikely(addr >= sizeof image || size > sizeof image - addr) switch (type) {
 	case MAPR: trap(t, RACCES, addr); return 0;
@@ -105,19 +120,14 @@ unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
 	return &image[addr];
 }
 
+static void sigalrm(int sig) {
+	(void)sig; fired = 1;
+}
+
 void unmap(struct hart *t) {
 	struct mhart *restrict m = (struct mhart *)t;
 
-#if defined _POSIX_TIMERS && _POSIX_TIMERS + 0 >= 0 && \
-    defined _POSIX_MONOTONIC_CLOCK && _POSIX_MONOTONIC_CLOCK + 0 >= 0
-	struct timespec ts;
-	clock_gettime(CLOCK_MONOTONIC, &ts);
-	time_ = timeorg +
-	        (uint_least64_t)ts.tv_sec * 1000000 +
-	        ts.tv_nsec / 1000;
-#else
-#error "no clock_gettime or CLOCK_MONOTONIC?"
-#endif
+	if unlikely(ready) {
 
 	if unlikely(ready & UART) {
 		if (!(uart[3] & 0x80) && write(STDOUT_FILENO, &uart[0], 1) < 0) abort();
@@ -157,9 +167,9 @@ void unmap(struct hart *t) {
 		  (uint_least64_t)mtime[6] << 48 |
 		  (uint_least64_t)mtime[7] << 56;
 		timeorg = time_ - t;
-		ready &= ~MTIME;
+		goto schedule;
 	}
-	if unlikely(ready & MTIMECMP) {
+	if unlikely(ready & MTIMECMP) schedule: {
 		timecmp =         mtimecmp[0]       |
 		  (uint_least64_t)mtimecmp[1] <<  8 |
 		  (uint_least64_t)mtimecmp[2] << 16 |
@@ -168,13 +178,33 @@ void unmap(struct hart *t) {
 		  (uint_least64_t)mtimecmp[5] << 40 |
 		  (uint_least64_t)mtimecmp[6] << 48 |
 		  (uint_least64_t)mtimecmp[7] << 56;
-		ready &= ~MTIMECMP;
+
+		struct itimerspec it = {0};
+		if (time_ >= timecmp) {
+			timer_settime(timer, 0, &it, 0); /* disarm */
+			m->pending |= XWORD_C(1) << MTI;
+		} else {
+			uint_least64_t deadline = timecmp - timeorg;
+			it.it_value.tv_sec  = deadline / 1000000;
+			it.it_value.tv_nsec = deadline % 1000000 * 1000;
+			timer_settime(timer, TIMER_ABSTIME, &it, 0);
+			m->pending &= ~(XWORD_C(1) << MTI);
+		}
+		ready &= ~(MTIME | MTIMECMP);
 	}
 
-	if unlikely(time_ >= timecmp)
-		m->pending |=   XWORD_C(1) << MTI;
-	else
-		m->pending &= ~(XWORD_C(1) << MTI);
+	} /* ready */
+
+	if unlikely(fired) {
+		struct timespec ts;
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+		time_ = timeorg +
+		        (uint_least64_t)ts.tv_sec * 1000000 +
+		        ts.tv_nsec / 1000;
+		if (time_ >= timecmp) {
+			m->pending |= XWORD_C(1) << MTI; fired = 0;
+		}
+	}
 }
 
 xword_t xalign(struct hart *t, xword_t pc) {
@@ -288,6 +318,25 @@ int main(int argc, char **argv) {
 			perror("tcsetattr"); return EXIT_FAILURE;
 		}
 	}
+
+	struct sigaction sa = {0};
+	sigemptyset(&sa.sa_mask);
+	sa.sa_flags = SA_RESTART;
+	sa.sa_handler = &sigalrm;
+	sigaction(SIGALRM, &sa, 0);
+
+#if defined _XOPEN_REALTIME && _XOPEN_REALTIME + 0 >= 0 && \
+    defined _POSIX_MONOTONIC_CLOCK && _POSIX_MONOTONIC_CLOCK + 0 >= 0
+/* implies _POSIX_TIMERS */
+	struct sigevent se = {0};
+	se.sigev_notify = SIGEV_SIGNAL;
+	se.sigev_signo  = SIGALRM;
+	if (timer_create(CLOCK_MONOTONIC, &se, &timer) < 0) {
+		perror("timer_create"); return EXIT_FAILURE;
+	}
+#else
+#error "no timer_create or CLOCK_MONOTONIC?"
+#endif
 
 	struct mhart mhart = {0};
 	mhart.hart.pc = BASE;
