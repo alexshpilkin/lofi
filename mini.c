@@ -21,7 +21,7 @@ DEFINE_INTERRUPT(MTI)
 #endif
 
 /* FIXME */
-static unsigned char image[IMGSIZ], uart[8], msip[4], mtime[8], mtimecmp[8], syscon[4];
+static unsigned char image[IMGSIZ], uart[8], msip[4], mtime[8], mtimecmp[8];
 static uint_least64_t time_, timecmp, timeorg;
 
 static timer_t timer;
@@ -30,10 +30,7 @@ static volatile sig_atomic_t fired;
 /* FIXME */
 #define unlikely(C) (__builtin_expect(!!(C), 0))
 
-typedef unsigned char *map_t(struct hart *, xword_t, xword_t, int);
-typedef void wbk_t(struct hart *);
-
-static wbk_t *wbk; /* FIXME move to hart */
+wbk_t *wbk; /* FIXME move to hart */
 
 static void uartwbk(struct hart *t) {
 	if (!(uart[3] & 0x80) && write(STDOUT_FILENO, &uart[0], 1) < 0) abort();
@@ -158,31 +155,6 @@ static unsigned char *clintmap(struct hart *t, xword_t addr, xword_t size, int t
 
 __attribute__((alias("clintmap"))) map_t meg110;
 
-static void sysconwbk(struct hart *t) {
-	xword_t v = syscon[0]        |
-	  ((xword_t)syscon[1] <<  8) |
-	  ((xword_t)syscon[2] << 16) |
-	  ((xword_t)syscon[3] << 24);
-
-	syscon[0] = syscon[1] = syscon[2] = syscon[3] = 0;
-
-	switch (v) {
-	case 0x5555: exit(EXIT_SUCCESS);
-	case 0x7777: /* FIXME restart */
-	default:     abort();
-	}
-}
-
-static unsigned char *sysconmap(struct hart *t, xword_t addr, xword_t size, int type) {
-	addr &= 0xFFFFF;
-	if unlikely(addr != 0x00000 || size != 4) return 0;
-	syscon[0] = syscon[1] = syscon[2] = syscon[3] = 0;
-	if (type >= MAPA) wbk = &sysconwbk;
-	return &syscon[0];
-}
-
-__attribute__((alias("sysconmap"))) map_t meg111;
-
 static unsigned char *imagemap(struct hart *t, xword_t addr, xword_t size, int type) {
 	addr -= BASE;
 	if unlikely(addr >= sizeof image || size > sizeof image - addr)
@@ -192,11 +164,9 @@ static unsigned char *imagemap(struct hart *t, xword_t addr, xword_t size, int t
 
 #define meg100 meg100_ /* defined here */
 #define meg110 meg110_ /* defined here */
-#define meg111 meg111_ /* defined here */
 __attribute__((alias("imagemap"), weak)) map_t HEX12(meg); /* FIXME */
 #undef meg100
 #undef meg110
-#undef meg111
 
 unsigned char *map(struct hart *t, xword_t addr, xword_t size, int type) {
 	static map_t *const meg[0x1000] = { HEX12(&meg) };

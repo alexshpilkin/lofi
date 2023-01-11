@@ -1,6 +1,8 @@
 /* requires stdint.h, riscv.h */
 
 typedef void execute_t(struct hart *, uint_least32_t);
+typedef void wbk_t(struct hart *);
+typedef unsigned char *map_t(struct hart *, xword_t, xword_t, int);
 
 #define HEX3(T) \
 	T##0, T##1, T##2, T##3, T##4, T##5, T##6, T##7
@@ -33,6 +35,9 @@ execute_t HEX7(xops), HEX7(wops);
 	HEX8(T##4), HEX8(T##5), HEX8(T##6), HEX8(T##7), \
 	HEX8(T##8), HEX8(T##9), HEX8(T##A), HEX8(T##B), \
 	HEX8(T##C), HEX8(T##D), HEX8(T##E), HEX8(T##F)
+
+/* FIXME nothing to do with rvexec */
+map_t HEX12(meg);
 
 #ifdef __GNUC__
 #define DEFINE_EXTENSION(C) \
